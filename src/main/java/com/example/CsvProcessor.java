@@ -34,8 +34,8 @@ public class CsvProcessor {
             errors.put("Other Errors", new ArrayList<>());
 
             Set<String> skuSet = new HashSet<>();
-            List<CSVRecord> successfulRecords = new ArrayList<>();
-            List<CSVRecord> imageEntries = new ArrayList<>(); // List to store image entries
+            List<SuccessfulRecord> successfulRecords = new ArrayList<>(); // Changed to store additional info
+            List<CSVRecord> imageEntries = new ArrayList<>();
 
             try (BOMInputStream bomInputStream = new BOMInputStream(new FileInputStream(inputFilePath));
                  CSVParser parser = new CSVParser(new InputStreamReader(bomInputStream, StandardCharsets.UTF_8),
@@ -50,7 +50,7 @@ public class CsvProcessor {
                     }
                 }
 
-                // Group records by handle AND REMOVE IMAGE ENTRIES
+                // Group records by handle and skip image entries
                 List<CSVRecord> recordsToProcess = new ArrayList<>();
                 for (CSVRecord record : parser) {
                     boolean isImageEntry = record.get("Option1 Name").isEmpty() &&
@@ -59,14 +59,13 @@ public class CsvProcessor {
                             record.get("Option2 Value").isEmpty() &&
                             record.get("Variant SKU").isEmpty();
 
-                    if (!isImageEntry) { // Only add non-image entries to the processing list
+                    if (!isImageEntry) {
                         recordsToProcess.add(record);
                     } else {
-                        System.out.println("Skipping image entry: " + record.get("Handle") + " - " + record.get("Variant SKU")); //optional logging
+                        imageEntries.add(record);
                     }
                 }
 
-                // Now process only the non-image entries
                 for (CSVRecord record : recordsToProcess) {
                     String handle = record.get("Handle");
                     handleToRecordsMap.computeIfAbsent(handle, k -> new ArrayList<>()).add(record);
@@ -77,35 +76,44 @@ public class CsvProcessor {
                     String handle = entry.getKey();
                     List<CSVRecord> records = entry.getValue();
 
-                    // Identify the meta product (record with a title)
                     List<CSVRecord> metaRecords = records.stream()
                             .filter(r -> r.get("Title") != null && !r.get("Title").isEmpty())
                             .collect(Collectors.toList());
 
-                    // Validate meta product
                     if (metaRecords.size() > 1) {
                         for (CSVRecord metaRecord : metaRecords) {
                             errors.get("Other Errors").add(new ProductError(
                                     "Valid title option must have only one record: " + metaRecords.size() + " found.", metaRecord));
                         }
-                        continue; // Skip this handle group if there are multiple meta products
+                        continue;
                     }
 
                     CSVRecord metaRecord = metaRecords.isEmpty() ? null : metaRecords.get(0);
 
-                    // Handle missing meta product
                     if (metaRecord == null) {
+                        // Handle cases where there is no meta product
                         for (CSVRecord record : records) {
-                            errors.get("Other Errors").add(new ProductError("Missing meta product title", record));
+                            String sku = getCellValue(record, "Variant SKU");
+                            String title = getCellValue(record, "Title");
+                            String option1Value = getCellValue(record, "Option1 Value");
+                            String option2Value = getCellValue(record, "Option2 Value");
+
+                            // Check if the variant can be added to the "Success" sheet
+                            if (!sku.isEmpty() && !handle.isEmpty() && title.isEmpty() &&
+                                    (!option1Value.isEmpty() || !option2Value.isEmpty())) {
+                                successfulRecords.add(new SuccessfulRecord(record, "Meta product is missing"));
+                            } else {
+                                errors.get("Other Errors").add(new ProductError("Missing meta product title", record));
+                            }
                         }
-                        continue; // Skip this handle if no meta product found
+                        continue;
                     }
 
                     String metaTitle = metaRecord.get("Title");
                     String metaOption1Name = metaRecord.get("Option1 Name");
                     String metaOption2Name = metaRecord.get("Option2 Name");
 
-                    // Check for valid option names in the meta product
+                    // Check for valid option names in meta product
                     if (metaOption1Name.isEmpty() && metaOption2Name.isEmpty()) {
                         errors.get("Other Errors").add(new ProductError("Meta product must have at least one option name.", metaRecord));
                     }
@@ -115,15 +123,33 @@ public class CsvProcessor {
                         errors.get("Invalid Options").add(new ProductError("Duplicate option names found in meta product: " + metaOption1Name, metaRecord));
                     }
 
-                    // Prepare to collect option names from the meta product
-                    Set<String> optionNames = new HashSet<>();
-                    if (!metaOption1Name.isEmpty()) {
-                        optionNames.add(metaOption1Name.toLowerCase());
-                    }
-                    if (!metaOption2Name.isEmpty()) {
-                        optionNames.add(metaOption2Name.toLowerCase());
+                    // Check for special 'title' option in meta product
+                    boolean hasTitleOption = false;
+                    if (metaOption1Name.equalsIgnoreCase("title")) {
+                        hasTitleOption = true;
+
+                        // Validate 'title' option rules
+                        String option1Value = metaRecord.get("Option1 Value");
+                        if (!option1Value.equalsIgnoreCase("default title")) {
+                            errors.get("Invalid Options").add(new ProductError("Option1 Value must be 'Default Title' when Option1 Name is 'title'", metaRecord));
+                        }
+
+                        if (!metaOption2Name.isEmpty()) {
+                            errors.get("Invalid Options").add(new ProductError("Option2 Name must be empty when Option1 Name is 'title'", metaRecord));
+                        }
+
+                        if (records.size() > 1) {
+                            for (CSVRecord record : records) {
+                                if (!record.equals(metaRecord)) {
+                                    errors.get("Invalid Options").add(new ProductError("Variants are not allowed when Option1 Name is 'title'", record));
+                                }
+                            }
+                        }
+                    } else if (metaOption2Name.equalsIgnoreCase("title")) {
+                        errors.get("Invalid Options").add(new ProductError("'title' option must be in Option1 Name", metaRecord));
                     }
 
+                    // Process each record under this handle
                     for (CSVRecord record : records) {
                         String title = getCellValue(record, "Title");
                         String productCategory = getCellValue(record, "Product Category");
@@ -133,56 +159,64 @@ public class CsvProcessor {
                         String option2Name = getCellValue(record, "Option2 Name");
                         String option2Value = getCellValue(record, "Option2 Value");
 
-                        boolean isValid = true; // Flag to track overall record validity
+                        // Validate option names
+                        if (!option1Name.isEmpty() && !VALID_OPTION_TYPES.contains(option1Name.toLowerCase())) {
+                            errors.get("Invalid Options").add(new ProductError("Option 1 Name must be 'Color', 'Size', 'Brand', 'Category', or 'Title' ", record));
+                        }
+                        if (!option2Name.isEmpty() && !VALID_OPTION_TYPES.contains(option2Name.toLowerCase())) {
+                            errors.get("Invalid Options").add(new ProductError("Option 2 Name must be 'Color', 'Size', 'Brand', 'Category', or 'Title'; ", record));
+                        }
 
                         // Validate SKU
                         if (sku.isEmpty()) {
                             errors.get("Invalid - Duplicate SKUs").add(new ProductError("Missing SKU", record, metaTitle));
-                            isValid = false;
                         } else if (skuSet.contains(sku)) {
                             errors.get("Invalid - Duplicate SKUs").add(new ProductError("Duplicate SKU found", record, metaTitle));
-                            isValid = false;
                         } else {
-                            skuSet.add(sku); // Add the SKU to the set if unique
+                            skuSet.add(sku);
                         }
 
-                        // Inherit option names from meta product if missing
-                        if (option1Name.isEmpty() && !metaOption1Name.isEmpty()) {
-                            option1Name = metaOption1Name;
-                        }
-                        if (option2Name.isEmpty() && !metaOption2Name.isEmpty()) {
-                            option2Name = metaOption2Name;
+                        if (record.equals(metaRecord)) {
+                            if (title.isEmpty()) {
+                                errors.get("Other Errors").add(new ProductError("Meta product must have a title", record));
+                            }
+                        } else {
+                            if (!title.isEmpty()) {
+                                errors.get("Other Errors").add(new ProductError("Variants cannot have a title", record));
+                            }
+
+                            // Check if the variant has values for meta product options
+                            if (!metaOption1Name.isEmpty() && option1Value.isEmpty()) {
+                                errors.get("Invalid Options").add(new ProductError(
+                                        "Missing value for inherited option: " + metaOption1Name, record));
+                            }
+                            if (!metaOption2Name.isEmpty() && option2Value.isEmpty()) {
+                                errors.get("Invalid Options").add(new ProductError(
+                                        "Missing value for inherited option: " + metaOption2Name, record));
+                            }
                         }
 
-                        // If both option names are missing, flag as error
-                        if (option1Name.isEmpty() && option2Name.isEmpty()) {
-                            errors.get("Invalid Options").add(new ProductError(
-                                    "Both Option1 Name and Option2 Name are missing for handle " + handle, record, metaTitle));
-                            isValid = false;
-                        }
+                        // Check if the meta product has errors
+                        boolean metaHasErrors = errors.values().stream()
+                                .anyMatch(list -> list.stream().anyMatch(e -> e.handle.equals(handle) && e.record == metaRecord));
 
-                        // If valid, add to successful records
-                        if (isValid && record.equals(metaRecord)) {
-                            successfulRecords.add(record);
+                        // If no errors were added, consider the record successful
+                        if (errors.values().stream().noneMatch(list -> list.stream().anyMatch(e -> e.handle.equals(record.get("Handle"))))) {
+                            successfulRecords.add(new SuccessfulRecord(record, metaHasErrors ? "Meta product has errors" : ""));
                         }
                     }
                 }
             }
 
-            // Log how many image entries were found
             System.out.println("Skipped image entries: " + imageEntries.size());
 
-            // Write errors to Excel
             writeErrorsToExcel(outputFilePath, errors);
             writeSuccessfulRecordsToExcel(outputFilePath, successfulRecords);
             System.out.println("Processing completed. Errors written to: " + outputFilePath);
-
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
-
-
 
     private static void writeErrorsToExcel(String outputFilePath, Map<String, List<ProductError>> errors) throws IOException {
         try (Workbook workbook = new XSSFWorkbook()) {
@@ -197,20 +231,16 @@ public class CsvProcessor {
 
     private static void writeErrorsToSheet(Workbook workbook, String sheetName, List<ProductError> productErrors) {
         Sheet sheet = workbook.createSheet(sheetName);
-
-        // Write count above header
         Row countRow = sheet.createRow(0);
         countRow.createCell(0).setCellValue("Count of " + sheetName + ": " + productErrors.size());
 
-        // Create header row
         Row headerRow = sheet.createRow(1);
         String[] headers = {"Error Log", "Handle", "Title", "Product Category", "Option 1 Name", "Option 1 Value", "Option 2 Name", "Option 2 Value", "Variant SKU"};
         for (int i = 0; i < headers.length; i++) {
             headerRow.createCell(i).setCellValue(headers[i]);
         }
 
-        // Write error data
-        int rowNum = 2; // The next row to write errors to
+        int rowNum = 2;
         for (ProductError error : productErrors) {
             Row row = sheet.createRow(rowNum++);
             row.createCell(0).setCellValue(error.errorLog);
@@ -225,25 +255,22 @@ public class CsvProcessor {
         }
     }
 
-    private static void writeSuccessfulRecordsToExcel(String outputFilePath, List<CSVRecord> successfulRecords) throws IOException {
+    private static void writeSuccessfulRecordsToExcel(String outputFilePath, List<SuccessfulRecord> successfulRecords) throws IOException {
         try (FileInputStream fileInputStream = new FileInputStream(outputFilePath);
              Workbook workbook = new XSSFWorkbook(fileInputStream)) {
             Sheet successSheet = workbook.createSheet("Success");
-
-            // Write count above header
             Row countRow = successSheet.createRow(0);
             countRow.createCell(0).setCellValue("Count of Successful Records: " + successfulRecords.size());
 
-            // Create header row for success
             Row headerRow = successSheet.createRow(1);
-            String[] headers = {"Handle", "Title", "Product Category", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Variant SKU"};
+            String[] headers = {"Handle", "Title", "Product Category", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Variant SKU", "Meta Product Status"}; // Added new header
             for (int i = 0; i < headers.length; i++) {
                 headerRow.createCell(i).setCellValue(headers[i]);
             }
 
-            // Write successful records
-            int rowNum = 2; // Start writing successful records below the header
-            for (CSVRecord record : successfulRecords) {
+            int rowNum = 2;
+            for (SuccessfulRecord successfulRecord : successfulRecords) {
+                CSVRecord record = successfulRecord.record;
                 Row row = successSheet.createRow(rowNum++);
                 row.createCell(0).setCellValue(record.get("Handle"));
                 row.createCell(1).setCellValue(record.get("Title"));
@@ -253,6 +280,7 @@ public class CsvProcessor {
                 row.createCell(5).setCellValue(record.get("Option2 Name"));
                 row.createCell(6).setCellValue(record.get("Option2 Value"));
                 row.createCell(7).setCellValue(record.get("Variant SKU"));
+                row.createCell(8).setCellValue(successfulRecord.metaStatus); // Add the meta product status
             }
 
             try (FileOutputStream outputStream = new FileOutputStream(outputFilePath)) {
@@ -274,16 +302,26 @@ public class CsvProcessor {
         }
     }
 
-    private static String getCellValue(CSVRecord record, String header) {
+    private static String getCellValue(CSVRecord record, String headerName) {
         try {
-            return record.get(header);
+            return record.get(headerName);
         } catch (IllegalArgumentException e) {
-            System.err.println("Header missing: " + header);
             return ""; // Handle missing header gracefully
         }
     }
 
-    private static class ProductError {
+    // Helper class to store successful records with meta product status
+    private static class SuccessfulRecord {
+        CSVRecord record;
+        String metaStatus; // "Meta product is missing" or "Meta product has errors"
+
+        public SuccessfulRecord(CSVRecord record, String metaStatus) {
+            this.record = record;
+            this.metaStatus = metaStatus;
+        }
+    }
+
+    public static class ProductError {
         String errorLog;
         String handle;
         String title;
@@ -293,23 +331,37 @@ public class CsvProcessor {
         String option2Name;
         String option2Value;
         String variantSKU;
+        CSVRecord record;
 
         public ProductError(String errorLog, CSVRecord record) {
             this.errorLog = errorLog;
-            this.handle = getCellValue(record, "Handle");
-            this.title = getCellValue(record, "Title"); // Get title from the record
-            this.productCategory = getCellValue(record, "Product Category");
-            this.option1Name = getCellValue(record, "Option1 Name");
-            this.option1Value = getCellValue(record, "Option1 Value");
-            this.option2Name = getCellValue(record, "Option2 Name");
-            this.option2Value = getCellValue(record, "Option2 Value");
-            this.variantSKU = getCellValue(record, "Variant SKU");
+            this.record = record;
+            if (record != null) {
+                this.handle = record.get("Handle");
+                this.title = record.get("Title");
+                this.productCategory = record.get("Product Category");
+                this.option1Name = record.get("Option1 Name");
+                this.option1Value = record.get("Option1 Value");
+                this.option2Name = record.get("Option2 Name");
+                this.option2Value = record.get("Option2 Value");
+                this.variantSKU = record.get("Variant SKU");
+            } else {
+                this.handle = "";
+                this.title = "";
+                this.productCategory = "";
+                this.option1Name = "";
+                this.option1Value = "";
+                this.option2Name = "";
+                this.option2Value = "";
+                this.variantSKU = "";
+            }
         }
 
-        public ProductError(String errorLog, CSVRecord record, String title) {
-            this.errorLog = errorLog;
-            this.handle = getCellValue(record, "Handle");
-            this.title = title; // Use provided title (meta title)
+        public ProductError(String errorLog, CSVRecord record, String metaTitle) {
+            this(errorLog, record);
+            this.title = metaTitle;
         }
     }
 }
+
+
