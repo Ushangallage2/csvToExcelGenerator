@@ -143,66 +143,80 @@ public class CsvProcessor {
                         }
 
                         // Validate SKU
+                        // Inside the inner loop:  for (CSVRecord record : records) {
+
+                        // Collect all errors for this record first
+                        List<ProductError> currentRecordErrors = new ArrayList<>();
+
+                        // Validate SKU
                         if (sku.isEmpty()) {
-                            errors.get("Invalid - Duplicate SKUs").add(new ProductError("Missing SKU", record, metaRecord != null ? metaRecord.get("Title") : ""));
+                            currentRecordErrors.add(new ProductError("Missing SKU", record, metaRecord != null ? metaRecord.get("Title") : ""));
+                            errors.get("Invalid - Duplicate SKUs").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                         } else if (skuSet.contains(sku)) {
-                            errors.get("Invalid - Duplicate SKUs").add(new ProductError("Duplicate SKU found", record, metaRecord != null ? metaRecord.get("Title") : ""));
+                            currentRecordErrors.add(new ProductError("Duplicate SKU found", record, metaRecord != null ? metaRecord.get("Title") : ""));
+                            errors.get("Invalid - Duplicate SKUs").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                         } else {
                             skuSet.add(sku);
                         }
 
                         if (record.equals(metaRecord)) { //Meta Product Validations
                             if (title.isEmpty()) {
-                                errors.get("Other Errors").add(new ProductError("Meta product must have a title", record));
+                                currentRecordErrors.add(new ProductError("Meta product must have a title", record));
+                                errors.get("Other Errors").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                             }
-
-                            // Expanded Option Validations for Meta Products
 
                             // Meta product cannot have both Option1 Name and Option2 Name empty.
                             if (option1Name.isEmpty() && option2Name.isEmpty()) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Meta product cannot have both Option1 Name and Option2 Name empty", record));
+                                currentRecordErrors.add(new ProductError("Meta product cannot have both Option1 Name and Option2 Name empty", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
 
                             if (!option1Name.isEmpty() && !VALID_OPTION_TYPES.contains(option1Name.toLowerCase())) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Invalid Option1 Name: " + option1Name, record));
+                                currentRecordErrors.add(new ProductError("Invalid Option1 Name: " + option1Name, record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
+
+                            if (option2Name.equalsIgnoreCase("title")) {
+                                currentRecordErrors.add(new ProductError("Option2 Name cannot be 'title'", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
+                                hasOptionErrors = true;
+                            }
+
                             if (!option2Name.isEmpty() && !VALID_OPTION_TYPES.contains(option2Name.toLowerCase())) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Invalid Option2 Name: " + option2Name, record));
+                                currentRecordErrors.add(new ProductError("Invalid Option2 Name: " + option2Name, record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
 
                             if (!option1Name.isEmpty() && option1Name.equalsIgnoreCase(option2Name)) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Option1 Name and Option2 Name cannot be the same", record));
+                                currentRecordErrors.add(new ProductError("Option1 Name and Option2 Name cannot be the same", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
 
                             // New Validation: Color vs. Colour
                             if (option1Name.equalsIgnoreCase("color") && option2Name.equalsIgnoreCase("colour") ||
                                     option1Name.equalsIgnoreCase("colour") && option2Name.equalsIgnoreCase("color")) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Option names cannot be 'color' and 'colour' simultaneously.  They should be identical.", record));
+                                currentRecordErrors.add(new ProductError("Option names cannot be 'color' and 'colour' simultaneously.  They should be identical.", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
-
                             if (!option1Name.isEmpty() && option1Value.isEmpty()) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Option1 Value cannot be empty when Option1 Name is present", record));
+                                currentRecordErrors.add(new ProductError("Option1 Value cannot be empty when Option1 Name is present", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
                             if (!option2Name.isEmpty() && option2Value.isEmpty()) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Option2 Value cannot be empty when Option2 Name is present", record));
+                                currentRecordErrors.add(new ProductError("Option2 Value cannot be empty when Option2 Name is present", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
                         } else { //Variant Product Validations
                             if (!title.isEmpty()) {
-                                errors.get("Other Errors").add(new ProductError("Variants cannot have a title", record));
+                                currentRecordErrors.add(new ProductError("Variants cannot have a title", record));
+                                errors.get("Other Errors").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                             }
 
                             // Check if the variant has values for meta product options
@@ -211,13 +225,13 @@ public class CsvProcessor {
                                 String metaOption2Name = metaRecord.get("Option2 Name");
 
                                 if (!metaOption1Name.isEmpty() && option1Value.isEmpty()) {
-                                    errors.get("Invalid Options").add(new ProductError(
-                                            "Missing value for inherited option: " + metaOption1Name, record));
+                                    currentRecordErrors.add(new ProductError("Missing value for inherited option: " + metaOption1Name, record));
+                                    errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                     hasOptionErrors = true;
                                 }
                                 if (!metaOption2Name.isEmpty() && option2Value.isEmpty()) {
-                                    errors.get("Invalid Options").add(new ProductError(
-                                            "Missing value for inherited option: " + metaOption2Name, record));
+                                    currentRecordErrors.add(new ProductError("Missing value for inherited option: " + metaOption2Name, record));
+                                    errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                     hasOptionErrors = true;
                                 }
                             }
@@ -226,20 +240,20 @@ public class CsvProcessor {
                         // Custom Validations
                         if (option1Name.equalsIgnoreCase("title")) {
                             if (!option1Value.equalsIgnoreCase("Default Title")) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Option1 Value must be 'Default Title' when Option1 Name is 'title'", record));
+                                currentRecordErrors.add(new ProductError("Option1 Value must be 'Default Title' when Option1 Name is 'title'", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
                             if (!option2Name.isEmpty()) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Option2 Name must be empty when Option1 Name is 'title'", record));
+                                currentRecordErrors.add(new ProductError("Option2 Name must be empty when Option1 Name is 'title'", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
 
                             // Check for variants (more than one record for the handle)
                             if (records.size() > 1) {
-                                errors.get("Invalid Options").add(new ProductError(
-                                        "Variants are not allowed when Option1 Name is 'title'", record));
+                                currentRecordErrors.add(new ProductError("Variants are not allowed when Option1 Name is 'title'", record));
+                                errors.get("Invalid Options").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                                 hasOptionErrors = true;
                             }
                         }
@@ -251,12 +265,26 @@ public class CsvProcessor {
                             metaStatus = "Meta product has errors";
                         }
 
-                        if (!record.equals(metaRecord) && (hasNoMetaProduct || hasMetaProductErrors || hasOptionErrors)) {
-                            successfulRecords.add(new SuccessfulRecord(record, metaStatus));
-                        } else if (errors.values().stream().noneMatch(list -> list.stream().anyMatch(e -> e.handle.equals(record.get("Handle"))))) {
-                            successfulRecords.add(new SuccessfulRecord(record, ""));
+                        //  Determine if the variant itself has ANY errors (including those found above)
+                        boolean hasVariantErrors = !currentRecordErrors.isEmpty();
+
+                        if (hasVariantErrors) {
+                            //Add meta status to all generated errors
+                            for (ProductError error : currentRecordErrors) {
+                                error.metaStatus = metaStatus;
+                            }
+                        } else {
+                            // If the variant has no errors of its own, but the meta product is missing or has errors,
+                            // then add it to successful records with the meta status.
+                            if (!metaStatus.isEmpty()) {
+                                successfulRecords.add(new SuccessfulRecord(record, metaStatus));
+                            } else {
+                                // Otherwise, it's a completely successful record.
+                                successfulRecords.add(new SuccessfulRecord(record, ""));
+                            }
                         }
                     }
+
                 }
             }
 
