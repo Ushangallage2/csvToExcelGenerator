@@ -1,0 +1,68 @@
+/* style.css */
+
+/* Set background color for the application */
+.root {
+    -fx-background-color: #1a1a1a; /* Dark background */
+}
+
+/* Style for transparent buttons */
+.button {
+    -fx-background-color: rgba(212, 175, 55, 0.8); /* Semi-transparent gold */
+    -fx-text-fill: #1a1a1a; /* Dark text */
+    -fx-font-size: 14px;
+    -fx-font-weight: bold; /* Bold text */
+    -fx-padding: 10px 20px; /* Padding around the text */
+    -fx-background-radius: 5; /* Rounded corners */
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 2, 0.0, 0, 1); /* Shadow effect */
+    -fx-border-color: transparent; /* No border */
+    -fx-border-radius: 5; /* Aligns with background radius */
+}
+
+.button:hover {
+    -fx-background-color: rgba(212, 175, 55, 1); /* Full gold on hover */
+    -fx-text-fill: #ffffff; /* White text on hover */
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.6), 6, 0.0, 0, 2); /* Stronger shadow on hover */
+}
+
+.button:pressed {
+    -fx-background-color: rgba(168, 133, 47, 0.9); /* Darker gold when pressed */
+    -fx-effect: none; /* No shadow on press */
+}
+
+/* Style for labels */
+.label {
+    -fx-text-fill: #d4af37; /* Gold color */
+    -fx-font-size: 16px;
+}
+
+/* Style for TextArea */
+.text-area {
+    -fx-control-inner-background: #2d2d2d; /* Dark gray background */
+    -fx-text-fill: #d4af37; /* Gold text */
+    -fx-font-size: 14px;
+}
+
+/* Style for ProgressIndicator */
+.progress-indicator {
+    -fx-accent: #d4af37; /* Gold color */
+}
+
+/* Style for ChoiceDialog and Alerts */
+.dialog-pane {
+    -fx-background-color: #1a1a1a; /* Dark background */
+}
+
+.dialog-pane .content {
+    -fx-text-fill: #d4af37; /* Gold text */
+}
+
+.dialog-pane .header {
+    -fx-text-fill: #d4af37; /* Gold text */
+}
+
+.dialog-pane .button {
+    -fx-background-color: rgba(212, 175, 55, 0.8); /* Semi-transparent gold */
+    -fx-text-fill: #1a1a1a; /* Dark text */
+    -fx-border-color: transparent; /* No border */
+    -fx-background-radius: 5; /* Aligns with background radius */
+}

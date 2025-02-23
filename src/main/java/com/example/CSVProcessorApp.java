@@ -8,8 +8,10 @@ import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.scene.image.Image;
 
 import java.io.*;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -53,9 +55,21 @@ public class CSVProcessorApp extends Application {
         processedExcelFiles.clear(); // Clear the list after deletion
     }
 
+
     @Override
     public void start(Stage primaryStage) {
         primaryStage.setTitle("CSV Processor");
+
+        // Load the CSS file with error handling
+        String cssFilePath = getClass().getClassLoader().getResource("style.css").toExternalForm();
+
+        if (cssFilePath == null) {
+            throw new IllegalArgumentException("CSS file not found");
+        }
+
+        // Load icon
+        Image icon = new Image(getClass().getClassLoader().getResourceAsStream("icon-excel.png"));
+        primaryStage.getIcons().add(icon); // Set icon for the window
 
         // UI Elements
         Button selectCsvButton = new Button("Select CSV File");
@@ -67,6 +81,13 @@ public class CSVProcessorApp extends Application {
         errorTextArea.setEditable(false);
         errorTextArea.setPrefHeight(150);
 
+        // Set all buttons to have the same size
+        double buttonWidth = 200; // Set a fixed width (adjust as needed)
+        selectCsvButton.setPrefWidth(buttonWidth);
+        processButton.setPrefWidth(buttonWidth);
+        viewExcelButton.setPrefWidth(buttonWidth);
+        saveExcelButton.setPrefWidth(buttonWidth);
+
         // Event Handlers
         selectCsvButton.setOnAction(e -> selectCsvFile());
         processButton.setOnAction(e -> processCsvFile());
@@ -76,6 +97,8 @@ public class CSVProcessorApp extends Application {
         // Layout
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));
+
+        // Arrange buttons in a vertical box
         layout.getChildren().addAll(
                 selectCsvButton,
                 selectedFileLabel,
@@ -86,20 +109,19 @@ public class CSVProcessorApp extends Application {
                 errorTextArea
         );
 
-
-
+        // Create and set the scene
         Scene scene = new Scene(layout, 600, 500);
+        scene.getStylesheets().add(cssFilePath); // Apply the CSS
+
         primaryStage.setScene(scene);
 
+        // Close request handling
         primaryStage.setOnCloseRequest(event -> {
-            // Check for unsaved output files
             if (!processedExcelFiles.isEmpty()) {
-                // Prompt the user for confirmation
                 Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
                 alert.setTitle("Unsaved Output Files");
                 alert.setHeaderText("You have unsaved output files.");
                 alert.setContentText("Would you like to delete them before exiting?");
-
                 Optional<ButtonType> result = alert.showAndWait();
                 if (result.isPresent() && result.get() == ButtonType.OK) {
                     deleteUnsavedOutputFiles();
