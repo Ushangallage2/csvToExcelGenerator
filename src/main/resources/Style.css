@@ -56,13 +56,38 @@
     -fx-text-fill: #d4af37; /* Gold text */
 }
 
-.dialog-pane .header {
-    -fx-text-fill: #d4af37; /* Gold text */
+
+
+.dialog-pane .header { -fx-text-fill: #000000; /* Black color for header text */
 }
 
 .dialog-pane .button {
     -fx-background-color: rgba(212, 175, 55, 0.8); /* Semi-transparent gold */
     -fx-text-fill: #1a1a1a; /* Dark text */
     -fx-border-color: transparent; /* No border */
-    -fx-background-radius: 5; /* Aligns with background radius */
+    -fx-background-radius: 8; /* Aligns with background radius */
 }
+
+.dialog-pane {
+    -fx-background-color: #1a1a1a; /* Dark background for dialog */
+}
+
+.dialog-pane .header {
+    -fx-text-fill: #d4af37; /* Gold color for header text */
+}
+
+.dialog-pane .content {
+    -fx-text-fill: #d4af37; /* Gold color for content text */
+}
+
+.dialog-pane .button {
+    -fx-background-color: rgba(212, 175, 55, 0.8); /* Semi-transparent gold */
+    -fx-text-fill: #1a1a1a; /* Dark text for buttons */
+}
+
+.dialog-pane .button:hover {
+    -fx-background-color: rgba(212, 175, 55, 1); /* Full gold on hover */
+    -fx-text-fill: #ffffff; /* White text on hover */
+}
+
+
