@@ -145,8 +145,8 @@ public class CSVProcessorApp extends Application {
         progressIndicator.setProgress(-1.0); // Set to indeterminate mode
         progressIndicator.setVisible(true); // Make it visible while processing
 
-        // Add the progress indicator to your layout (assuming it's part of a VBox)
-        VBox layout = (VBox) errorTextArea.getParent(); // Adjust if your layout is different
+        // Add the progress indicator to the layout
+        VBox layout = (VBox) errorTextArea.getParent(); // Adjust the layout
         layout.getChildren().add(progressIndicator);
 
         // Set the output file path and check for the parent directory
