@@ -6,6 +6,10 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Dialog;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextArea;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.text.FontWeight;
@@ -15,6 +19,9 @@ import javafx.scene.image.Image;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.paint.Color;  // Import for Color
+
+import java.awt.*;
+import java.util.List;
 import java.util.prefs.Preferences;
 
 
@@ -116,7 +123,7 @@ public class CSVProcessorApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("CSV Processor");
+        primaryStage.setTitle("Shopify CSV Fixer");
 
         String recentInputFolder = loadPreference(RECENT_INPUT_FOLDER_KEY, ""); // Default to empty
         String lastOutputFolder = loadPreference(LAST_OUTPUT_FOLDER_KEY, "");
@@ -143,6 +150,7 @@ public class CSVProcessorApp extends Application {
         Image icon = new Image(Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("icon-excel.png")));
         primaryStage.getIcons().add(icon); // Set icon for the window
 
+
         // UI Elements
         Button selectCsvButton = new Button("Select CSV File");
         Button processButton = new Button("Process CSV");
@@ -153,6 +161,29 @@ public class CSVProcessorApp extends Application {
         errorTextArea = new TextArea();
         errorTextArea.setEditable(false);
         errorTextArea.setPrefHeight(150);
+
+        VBox instructionsBox = new VBox();
+        instructionsBox.setVisible(false);
+        instructionsBox.setSpacing(5);
+
+        TextArea instructionsTextArea = new TextArea();
+        instructionsTextArea.setEditable(false);
+        instructionsTextArea.setWrapText(true);
+        instructionsTextArea.setPrefHeight(100);
+        instructionsTextArea.setText(
+                "* You can input more than 1 CSV file\n" +
+                        "* If you process one file over and over, output file will be named with the count of your attempt processed.\n" +
+                        "* You can view an output file without saving it.\n" +
+                        "* If you do not save an output file, it will be deleted upon closing the program."
+        );
+
+        Button toggleInstructionsButton = new Button("Show Instructions");
+        toggleInstructionsButton.setOnAction(e -> {
+            boolean isVisible = instructionsBox.isVisible();
+            instructionsBox.setVisible(!isVisible);
+            toggleInstructionsButton.setText(isVisible ? "Show Instructions" : "Hide Instructions");
+        });
+
 
         // Button Layout
         HBox buttonContainer = new HBox(10);  // HBox for buttons with spacing
@@ -170,7 +201,11 @@ public class CSVProcessorApp extends Application {
         // Main Layout
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));
-        layout.getChildren().addAll(buttonContainer, selectedFileLabel, new Label("Messages/Warnings:"), errorTextArea);
+        layout.getChildren().addAll(buttonContainer, selectedFileLabel, new Label("Messages/Warnings:"), errorTextArea, toggleInstructionsButton, instructionsBox);
+
+
+        // Add instructions to the instructions box
+        instructionsBox.getChildren().add(instructionsTextArea);
 
         // Create and set the scene
         Scene scene = new Scene(layout, 600, 500);
@@ -420,6 +455,8 @@ public class CSVProcessorApp extends Application {
         return count;
     }
 
+
+
     private void viewExcelFile() {
         if (processedExcelFiles.isEmpty()) {
             displayError("No Excel files processed yet.");
@@ -432,18 +469,60 @@ public class CSVProcessorApp extends Application {
         choiceDialog.setHeaderText("Choose an output file to view:");
         choiceDialog.setContentText("Output Files:");
 
-        // Apply style to the dialog
+        // Apply custom dialog style
         applyDialogStyle(choiceDialog);
-
-        // Apply the same CSS style to the dialog
-        if (cssFilePath != null) {
-            choiceDialog.getDialogPane().getStylesheets().add(cssFilePath);
-        }
 
         // Show the dialog and wait for the user to select a file
         Optional<File> selectedFile = choiceDialog.showAndWait();
         selectedFile.ifPresent(this::openExcelFile);
     }
+
+    private void openExcelFile(File file) {
+        // Obtain the Desktop instance
+        if (Desktop.isDesktopSupported()) {
+            Desktop desktop = Desktop.getDesktop();
+            try {
+                // Ensure the action is supported
+                if (desktop.isSupported(Desktop.Action.OPEN)) {
+                    desktop.open(file);
+                } else {
+                    displayError("Opening files is not supported on this system.");
+                }
+            } catch (IOException e) {
+                displayError("Error opening Excel file: " + e.getMessage());
+            }
+        } else {
+            displayError("Desktop is not supported on this platform.");
+        }
+    }
+
+
+
+
+//    private void viewExcelFile() {
+//        if (processedExcelFiles.isEmpty()) {
+//            displayError("No Excel files processed yet.");
+//            return;
+//        }
+//
+//        // Create a dialog for the user to select which output file to view
+//        ChoiceDialog<File> choiceDialog = new ChoiceDialog<>(processedExcelFiles.get(0), processedExcelFiles);
+//        choiceDialog.setTitle("Select Output File");
+//        choiceDialog.setHeaderText("Choose an output file to view:");
+//        choiceDialog.setContentText("Output Files:");
+//
+//        // Apply style to the dialog
+//        applyDialogStyle(choiceDialog);
+//
+//        // Apply the same CSS style to the dialog
+//        if (cssFilePath != null) {
+//            choiceDialog.getDialogPane().getStylesheets().add(cssFilePath);
+//        }
+//
+//        // Show the dialog and wait for the user to select a file
+//        Optional<File> selectedFile = choiceDialog.showAndWait();
+//        selectedFile.ifPresent(this::openExcelFile);
+//    }
 
 //    private void viewExcelFile() {
 //        if (processedExcelFiles.isEmpty()) {
@@ -462,21 +541,21 @@ public class CSVProcessorApp extends Application {
 //        selectedFile.ifPresent(file -> openExcelFile(file));
 //    }
 
-    private void openExcelFile(File file) {
-        // Attempt to open the Excel file using the default system application based on OS type
-        try {
-            String os = System.getProperty("os.name").toLowerCase();
-            if (os.contains("win")) {
-                Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", file.getAbsolutePath()});
-            } else if (os.contains("mac")) {
-                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", file.getAbsolutePath()});
-            } else {
-                displayError("Unsupported operating system for opening files.");
-            }
-        } catch (IOException e) {
-            displayError("Error opening Excel file: " + e.getMessage());
-        }
-    }
+//    private void openExcelFile(File file) {
+//        // Attempt to open the Excel file using the default system application based on OS type
+//        try {
+//            String os = System.getProperty("os.name").toLowerCase();
+//            if (os.contains("win")) {
+//                Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", file.getAbsolutePath()});
+//            } else if (os.contains("mac")) {
+//                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", file.getAbsolutePath()});
+//            } else {
+//                displayError("Unsupported operating system for opening files.");
+//            }
+//        } catch (IOException e) {
+//            displayError("Error opening Excel file: " + e.getMessage());
+//        }
+//    }
 
 //    private void saveExcelFile() {
 //        if (processedExcelFiles.isEmpty()) {
