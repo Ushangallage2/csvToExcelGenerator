@@ -1,6 +1,7 @@
 
 package com.example;
 
+import javafx.animation.FadeTransition;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -19,8 +20,10 @@ import javafx.scene.image.Image;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.paint.Color;  // Import for Color
+import javafx.scene.image.ImageView;
 
 import java.awt.*;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.prefs.Preferences;
 
@@ -33,6 +36,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import javafx.util.Duration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -40,6 +44,8 @@ import org.apache.commons.io.input.BOMInputStream;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import javafx.concurrent.Task;
+import javafx.concurrent.Task;  // Import Task
+import javafx.application.Platform; // Import Platform
 
 public class CSVProcessorApp extends Application {
 
@@ -55,6 +61,8 @@ public class CSVProcessorApp extends Application {
     private static final String LAST_OUTPUT_FOLDER_KEY = "last_output_folder";
     private Preferences prefs = Preferences.userNodeForPackage(CSVProcessorApp.class);
     private String cssFilePath;
+    private ProgressBar progressBar;  // Add ProgressBar
+    private Label progressLabel; // Add Label for progress text
 
     public static void main(String[] args) {
         launch(args);
@@ -118,6 +126,10 @@ public class CSVProcessorApp extends Application {
         }
     }
 
+    private void clearSelectedFiles() {
+        selectedCsvFiles.clear();
+        selectedFileLabel.setText("No file selected");
+    }
 
 
 
@@ -156,59 +168,100 @@ public class CSVProcessorApp extends Application {
         Button processButton = new Button("Process CSV");
         Button viewExcelButton = new Button("View Excel File");
         Button saveExcelButton = new Button("Save Excel File");
+        Button clearSelectedFilesButton = new Button("Clear Selected");
+        clearSelectedFilesButton.setOnAction(e -> {
+            System.out.println("Clear Selected Files Button Clicked");
+            clearSelectedFiles();
+        });
+
+        HBox buttonContainer = new HBox(10);
+        buttonContainer.setAlignment(Pos.CENTER);
+        buttonContainer.setPadding(new Insets(10));
+        buttonContainer.getChildren().addAll(selectCsvButton, processButton, viewExcelButton, saveExcelButton);
+
+
+
+        VBox saveClearButtonContainer = new VBox(10);
+        saveClearButtonContainer.setAlignment(Pos.CENTER_RIGHT);
+
+        saveClearButtonContainer.getChildren().addAll( clearSelectedFilesButton);
+
+
+
+
 
         selectedFileLabel = new Label("No file selected");
         errorTextArea = new TextArea();
         errorTextArea.setEditable(false);
         errorTextArea.setPrefHeight(150);
 
-        VBox instructionsBox = new VBox();
-        instructionsBox.setVisible(false);
-        instructionsBox.setSpacing(5);
-
-        TextArea instructionsTextArea = new TextArea();
-        instructionsTextArea.setEditable(false);
-        instructionsTextArea.setWrapText(true);
-        instructionsTextArea.setPrefHeight(100);
-        instructionsTextArea.setText(
+        // Instructions Label and Button
+        Label instructionsLabel = new Label(
                 "* You can input more than 1 CSV file\n" +
                         "* If you process one file over and over, output file will be named with the count of your attempt processed.\n" +
                         "* You can view an output file without saving it.\n" +
                         "* If you do not save an output file, it will be deleted upon closing the program."
         );
+        instructionsLabel.setOpacity(0); // Initially invisible
+        instructionsLabel.setVisible(false);
 
-        Button toggleInstructionsButton = new Button("Show Instructions");
+        FadeTransition ft = new FadeTransition(Duration.millis(1000), instructionsLabel);
+        ft.setFromValue(0.0);
+        ft.setToValue(1.0);
+
+
+        Button toggleInstructionsButton = new Button("▼ Show Instructions");
         toggleInstructionsButton.setOnAction(e -> {
-            boolean isVisible = instructionsBox.isVisible();
-            instructionsBox.setVisible(!isVisible);
-            toggleInstructionsButton.setText(isVisible ? "Show Instructions" : "Hide Instructions");
+            boolean isVisible = instructionsLabel.isVisible();
+            if (!isVisible) {
+                instructionsLabel.setVisible(true);
+                ft.playFromStart(); // Start fade-in animation
+
+                // Get the preferred height of the instructionsLabel
+                double instructionsHeight = instructionsLabel.getPrefHeight();
+
+                // Current stage height
+                double currentHeight = primaryStage.getHeight();
+
+                // Total fixed height (assuming button height and some padding)
+                double fixedHeight = 150 + 40; // Adjust as needed: 150 for TextArea and 40 for button, etc.
+
+                // Calculate required height for the stage
+                if (instructionsHeight > (currentHeight - fixedHeight)) {
+                    primaryStage.setHeight(currentHeight + (instructionsHeight - (currentHeight - fixedHeight)) + 20); // Add some padding
+                }
+
+            } else {
+                FadeTransition fadeOut = new FadeTransition(Duration.millis(500), instructionsLabel);
+                fadeOut.setFromValue(1.0);
+                fadeOut.setToValue(0.0);
+                fadeOut.setOnFinished(event -> {
+                    instructionsLabel.setVisible(false);
+                    // No need to resize stage when hiding instructions
+                });
+                fadeOut.play();
+            }
+            toggleInstructionsButton.setText(isVisible ? "▼ Show Instructions" : "▲ Hide Instructions");
         });
 
+        clearSelectedFilesButton.setStyle("-fx-background-color: #d4af37; -fx-text-fill: black; -fx-font-weight: bold; -fx-font-size: 14px; -fx-background-radius: 30; -fx-padding: 10 20; -fx-translate-x: -7;");
 
-        // Button Layout
-        HBox buttonContainer = new HBox(10);  // HBox for buttons with spacing
-        buttonContainer.setAlignment(Pos.CENTER);
-        buttonContainer.setPadding(new Insets(10));
-
-        buttonContainer.getChildren().addAll(selectCsvButton, processButton, viewExcelButton, saveExcelButton);
 
         // Bind buttons to stage width for responsiveness
         selectCsvButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
         processButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
         viewExcelButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
         saveExcelButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
+        clearSelectedFilesButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.18));
 
         // Main Layout
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));
-        layout.getChildren().addAll(buttonContainer, selectedFileLabel, new Label("Messages/Warnings:"), errorTextArea, toggleInstructionsButton, instructionsBox);
+        layout.getChildren().addAll(buttonContainer, saveClearButtonContainer, selectedFileLabel, new Label("Messages/Warnings:"), errorTextArea, toggleInstructionsButton, instructionsLabel);
 
-
-        // Add instructions to the instructions box
-        instructionsBox.getChildren().add(instructionsTextArea);
 
         // Create and set the scene
-        Scene scene = new Scene(layout, 600, 500);
+        Scene scene = new Scene(layout, 850, 600);
 
         selectCsvButton.setOnAction(e -> {
             System.out.println("Select CSV Button Clicked");
@@ -388,6 +441,8 @@ public class CSVProcessorApp extends Application {
     }
 
 
+
+
     private void processCsvFile() {
         if (selectedCsvFiles.isEmpty()) {
             displayError("Please select CSV files first.");
@@ -400,39 +455,56 @@ public class CSVProcessorApp extends Application {
         progressIndicator.setVisible(true);
         layout.getChildren().add(progressIndicator);
 
-        for (File csvFile : selectedCsvFiles) {
-            String inputFilePath = csvFile.getAbsolutePath();
-            String baseName = csvFile.getName().replaceFirst("[.][^.]+$", ""); // Filename without extension
+        Task<Void> processingTask = new Task<Void>() {
+            @Override
+            protected Void call() throws Exception {
+                int totalFiles = selectedCsvFiles.size();
+                for (int i = 0; i < totalFiles; i++) {
+                    File csvFile = selectedCsvFiles.get(i);
+                    String inputFilePath = csvFile.getAbsolutePath();
+                    String baseName = csvFile.getName().replaceFirst("[.][^.]+$", ""); // Filename without extension
 
-            // *NEW*: Determine the attempt count for this file.
-            int attemptCount = getAttemptCount(baseName);
-            String outputFilePath = baseName + "_attempt_" + attemptCount + ".xlsx"; // Unique name
+                    int attemptCount = getAttemptCount(baseName);
+                    String outputFilePath = baseName + "_attempt_" + attemptCount + ".xlsx"; // Unique name
 
-            // Use a Task to perform the CSV processing in a background thread
-            Task<Boolean> task = new Task<Boolean>() {
-                @Override
-                protected Boolean call() throws Exception {
                     try {
                         boolean success = csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea);
                         if (success) {
                             File outputFile = new File(outputFilePath);
                             processedExcelFiles.add(outputFile);
-                            javafx.application.Platform.runLater(() -> displayInfo("Processed " + csvFile.getName() + " to " + outputFile.getAbsolutePath()));
+                            Platform.runLater(() -> displayInfo("Processed " + csvFile.getName() + " to " + outputFile.getName()));
                         }
-                        return success;
                     } catch (IOException e) {
-                        javafx.application.Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " + e.getMessage()));
-                        return false;
-                    } finally {
-                        javafx.application.Platform.runLater(() -> {
-                            layout.getChildren().remove(progressIndicator);
-                        });
+                        Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " + e.getMessage()));
                     }
-                }
-            };
 
-            new Thread(task).start();
-        }
+                    // Provide some delay to allow visibility of processing feedback, if needed.
+                    Thread.sleep(100); // Slight delay for demo purposes; adjust as necessary.
+                }
+
+                return null;
+            }
+
+            @Override
+            protected void succeeded() {
+                super.succeeded();
+                Platform.runLater(() -> {
+                    displayInfo("All files processed successfully.");
+                    layout.getChildren().remove(progressIndicator); // Remove ProgressIndicator
+                });
+            }
+
+            @Override
+            protected void failed() {
+                super.failed();
+                Platform.runLater(() -> {
+                    displayError("File processing failed. Please check the logs.");
+                    layout.getChildren().remove(progressIndicator); // Remove ProgressIndicator
+                });
+            }
+        };
+
+        new Thread(processingTask).start(); // Start the processing task in a new thread
     }
 
     // *NEW*: Method to determine the attempt count.
@@ -477,24 +549,24 @@ public class CSVProcessorApp extends Application {
         selectedFile.ifPresent(this::openExcelFile);
     }
 
-    private void openExcelFile(File file) {
-        // Obtain the Desktop instance
-        if (Desktop.isDesktopSupported()) {
-            Desktop desktop = Desktop.getDesktop();
-            try {
-                // Ensure the action is supported
-                if (desktop.isSupported(Desktop.Action.OPEN)) {
-                    desktop.open(file);
-                } else {
-                    displayError("Opening files is not supported on this system.");
-                }
-            } catch (IOException e) {
-                displayError("Error opening Excel file: " + e.getMessage());
-            }
-        } else {
-            displayError("Desktop is not supported on this platform.");
-        }
-    }
+//    private void openExcelFile(File file) {
+//        // Obtain the Desktop instance
+//        if (Desktop.isDesktopSupported()) {
+//            Desktop desktop = Desktop.getDesktop();
+//            try {
+//                // Ensure the action is supported
+//                if (desktop.isSupported(Desktop.Action.OPEN)) {
+//                    desktop.open(file);
+//                } else {
+//                    displayError("Opening files is not supported on this system.");
+//                }
+//            } catch (IOException e) {
+//                displayError("Error opening Excel file: " + e.getMessage());
+//            }
+//        } else {
+//            displayError("Desktop is not supported on this platform.");
+//        }
+//    }
 
 
 
@@ -541,21 +613,21 @@ public class CSVProcessorApp extends Application {
 //        selectedFile.ifPresent(file -> openExcelFile(file));
 //    }
 
-//    private void openExcelFile(File file) {
-//        // Attempt to open the Excel file using the default system application based on OS type
-//        try {
-//            String os = System.getProperty("os.name").toLowerCase();
-//            if (os.contains("win")) {
-//                Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", file.getAbsolutePath()});
-//            } else if (os.contains("mac")) {
-//                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", file.getAbsolutePath()});
-//            } else {
-//                displayError("Unsupported operating system for opening files.");
-//            }
-//        } catch (IOException e) {
-//            displayError("Error opening Excel file: " + e.getMessage());
-//        }
-//    }
+    private void openExcelFile(File file) {
+        // Attempt to open the Excel file using the default system application based on OS type
+        try {
+            String os = System.getProperty("os.name").toLowerCase();
+            if (os.contains("win")) {
+                Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", file.getAbsolutePath()});
+            } else if (os.contains("mac")) {
+                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", file.getAbsolutePath()});
+            } else {
+                displayError("Unsupported operating system for opening files.");
+            }
+        } catch (IOException e) {
+            displayError("Error opening Excel file: " + e.getMessage());
+        }
+    }
 
 //    private void saveExcelFile() {
 //        if (processedExcelFiles.isEmpty()) {
@@ -626,28 +698,53 @@ public class CSVProcessorApp extends Application {
 
         // If the user made a selection, proceed to save the file
         selectedFile.ifPresent(fileToSave -> {
+            // FileChooser to let the user choose the save location
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Save Excel File");
-            fileChooser.setInitialFileName(fileToSave.getName()); // Suggest a name
+            fileChooser.setInitialFileName(fileToSave.getName()); // Suggest the same name
 
             // Set extension filter to .xlsx files
             fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files", "*.xlsx"));
 
-            // Set the initial directory from preferences or use default directory
+            // Load the last output folder path from preferences
             String lastOutputFolder = loadPreference(LAST_OUTPUT_FOLDER_KEY, "");
             if (!lastOutputFolder.isEmpty()) {
-                fileChooser.setInitialDirectory(new File(lastOutputFolder));
+                File initialDir = new File(lastOutputFolder);
+                if (initialDir.exists()) {
+                    fileChooser.setInitialDirectory(initialDir);
+                } else {
+                    // If the stored directory doesn't exist, fallback to the default
+                    fileChooser.setInitialDirectory(new File(getDefaultDirectory()));
+                    displayError("Stored output directory does not exist: " + lastOutputFolder + ".  Using default.");
+                }
             } else {
+                // If no preference is stored, use the default directory
                 fileChooser.setInitialDirectory(new File(getDefaultDirectory()));
             }
 
-            // Show save dialog
+            // Show save dialog and get the file chosen by the user
             File savedFile = fileChooser.showSaveDialog(new Stage());
 
+            // If the user selected a file (i.e., didn't cancel)
             if (savedFile != null) {
                 try {
+                    // Get the parent directory of the save location
+                    File parentDir = savedFile.getParentFile();
+
+                    // Check if the directory exists
+                    if (!parentDir.exists()) {
+                        displayError("Error: Directory does not exist: " + parentDir.getAbsolutePath());
+                        return;
+                    }
+
+                    // Check if the directory is writable
+                    if (!parentDir.canWrite()) {
+                        displayError("Error: No write permission to directory: " + parentDir.getAbsolutePath());
+                        return;
+                    }
+
                     // Copy the content of the selected processed file to the saved file
-                    Files.copy(fileToSave.toPath(), savedFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                    Files.copy(fileToSave.toPath(), savedFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
                     displayInfo("Excel file saved to: " + savedFile.getAbsolutePath());
                     savedExcelFiles.add(fileToSave); // Mark the file as saved
 
@@ -655,19 +752,97 @@ public class CSVProcessorApp extends Application {
                     savePreference(LAST_OUTPUT_FOLDER_KEY, savedFile.getParent());
 
                 } catch (IOException e) {
-                    displayError("Error saving Excel file: " + e.getMessage());
+                    displayError("Error saving Excel file: " + e.getMessage() + "\nStack Trace:\n" + getStackTraceString(e));
                 }
+            } else {
+                displayInfo("Save operation cancelled by user.");
             }
         });
     }
 
     private void displayError(String message) {
-        errorTextArea.appendText("Error: " + message + "\n");
+        Platform.runLater(() -> {
+            errorTextArea.appendText("Error: " + message + "\n");
+        });
     }
 
     private void displayInfo(String message) {
-        errorTextArea.appendText("Info: " + message + "\n");
+        Platform.runLater(() -> {
+            errorTextArea.appendText("Info: " + message + "\n");
+        });
     }
+
+    private String getStackTraceString(Exception e) {
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        e.printStackTrace(pw);
+        return sw.toString();
+    }
+
+
+
+//    private void saveExcelFile() {
+//        if (processedExcelFiles.isEmpty()) {
+//            displayError("No Excel files have been processed yet.");
+//            return;
+//        }
+//
+//        // Create a dropdown list of processed files
+//        ChoiceDialog<File> choiceDialog = new ChoiceDialog<>(processedExcelFiles.get(0), processedExcelFiles);
+//        choiceDialog.setTitle("Select Output File");
+//        choiceDialog.setHeaderText("Choose an output file to save:");
+//        choiceDialog.setContentText("Output Files:");
+//
+//        // Apply style to the dialog
+//        applyDialogStyle(choiceDialog);
+//
+//        // Show the dialog and wait for the user to select a file
+//        Optional<File> selectedFile = choiceDialog.showAndWait();
+//
+//        // If the user made a selection, proceed to save the file
+//        selectedFile.ifPresent(fileToSave -> {
+//            FileChooser fileChooser = new FileChooser();
+//            fileChooser.setTitle("Save Excel File");
+//            fileChooser.setInitialFileName(fileToSave.getName()); // Suggest a name
+//
+//            // Set extension filter to .xlsx files
+//            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files", "*.xlsx"));
+//
+//            // Set the initial directory from preferences or use default directory
+//            String lastOutputFolder = loadPreference(LAST_OUTPUT_FOLDER_KEY, "");
+//            if (!lastOutputFolder.isEmpty()) {
+//                fileChooser.setInitialDirectory(new File(lastOutputFolder));
+//            } else {
+//                fileChooser.setInitialDirectory(new File(getDefaultDirectory()));
+//            }
+//
+//            // Show save dialog
+//            File savedFile = fileChooser.showSaveDialog(new Stage());
+//
+//            if (savedFile != null) {
+//                try {
+//                    // Copy the content of the selected processed file to the saved file
+//                    Files.copy(fileToSave.toPath(), savedFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+//                    displayInfo("Excel file saved to: " + savedFile.getAbsolutePath());
+//                    savedExcelFiles.add(fileToSave); // Mark the file as saved
+//
+//                    // Save the last output folder path to preferences
+//                    savePreference(LAST_OUTPUT_FOLDER_KEY, savedFile.getParent());
+//
+//                } catch (IOException e) {
+//                    displayError("Error saving Excel file: " + e.getMessage());
+//                }
+//            }
+//        });
+//    }
+//
+//    private void displayError(String message) {
+//        errorTextArea.appendText("Error: " + message + "\n");
+//    }
+//
+//    private void displayInfo(String message) {
+//        errorTextArea.appendText("Info: " + message + "\n");
+//    }
 
     // Inner class to encapsulate CSV processing logic
     public static class CsvProcessor {

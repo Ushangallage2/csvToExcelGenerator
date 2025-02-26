@@ -1,6 +1,6 @@
 <component name="ArtifactManager">
   <artifact type="jar" name="csv_excel_generator:jar">
-    <output-path>$USER_HOME$/OneDrive/Desktop</output-path>
+    <output-path>$USER_HOME$/OneDrive/Documents</output-path>
     <root id="archive" name="csv_excel_generator.jar">
       <element id="module-output" name="csv_excel_generator" />
       <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/apache/commons/commons-collections4/4.4/commons-collections4-4.4.jar" path-in-jar="/" />
