@@ -42,6 +42,7 @@ import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.io.input.BOMInputStream;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import javafx.concurrent.Task;
 import javafx.concurrent.Task;  // Import Task
@@ -443,6 +444,24 @@ public class CSVProcessorApp extends Application {
 
 
 
+    // Helper method to find the header row dynamically
+    private int findHeaderRow(Sheet sheet, String[] expectedHeaders) {
+        for (Row row : sheet) {
+            boolean isHeaderRow = true;
+            for (int i = 0; i < expectedHeaders.length; i++) {
+                Cell cell = row.getCell(i);
+                if (cell == null || !cell.getStringCellValue().equals(expectedHeaders[i])) {
+                    isHeaderRow = false;
+                    break;
+                }
+            }
+            if (isHeaderRow) {
+                return row.getRowNum(); // Return the index of the header row
+            }
+        }
+        return -1; // Header row not found
+    }
+
     private void processCsvFile() {
         if (selectedCsvFiles.isEmpty()) {
             displayError("Please select CSV files first.");
@@ -467,23 +486,39 @@ public class CSVProcessorApp extends Application {
                     int attemptCount = getAttemptCount(baseName);
                     String outputFilePath = baseName + "_attempt_" + attemptCount + ".xlsx"; // Unique name
 
+//                    try {
+//                        boolean success = csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea);
+//                        if (success) {
+//                            File outputFile = new File(outputFilePath);
+//                            processedExcelFiles.add(outputFile);
+//                            Platform.runLater(() -> displayInfo("Processed " + csvFile.getName() + " to " + outputFile.getName()));
+//                        }
+//                    } catch (IOException e) {
+//                        Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " + e.getMessage()));
+//                    }
                     try {
                         boolean success = csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea);
                         if (success) {
                             File outputFile = new File(outputFilePath);
                             processedExcelFiles.add(outputFile);
-                            Platform.runLater(() -> displayInfo("Processed " + csvFile.getName() + " to " + outputFile.getName()));
+
+                            // Check if there are any errors in the output file
+                            boolean hasErrors = csvProcessor.hasErrors(outputFile);
+                            if (hasErrors) {
+                                Platform.runLater(() -> displayError("There are errors in this file. Please check: " + csvFile.getName() + " 😥"));
+                            } else {
+                                Platform.runLater(() -> displayInfo("There is no error in the file! " + csvFile.getName() + "😊"));
+                            }
                         }
                     } catch (IOException e) {
                         Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " + e.getMessage()));
                     }
+                                // Provide some delay to allow visibility of processing feedback, if needed.
+                                Thread.sleep(100); //slight delay
+                            }
 
-                    // Provide some delay to allow visibility of processing feedback, if needed.
-                    Thread.sleep(100); // Slight delay for demo purposes; adjust as necessary.
-                }
-
-                return null;
-            }
+                            return null;
+                        }
 
             @Override
             protected void succeeded() {
@@ -506,6 +541,99 @@ public class CSVProcessorApp extends Application {
 
         new Thread(processingTask).start(); // Start the processing task in a new thread
     }
+
+//    private void processCsvFile() {
+//        if (selectedCsvFiles.isEmpty()) {
+//            displayError("Please select CSV files first.");
+//            return;
+//        }
+//
+//        VBox layout = (VBox) errorTextArea.getParent();
+//        ProgressIndicator progressIndicator = new ProgressIndicator();
+//        progressIndicator.setProgress(-1.0);
+//        progressIndicator.setVisible(true);
+//        layout.getChildren().add(progressIndicator);
+//
+//        Task<Void> processingTask = new Task<Void>() {
+//            @Override
+//            protected Void call() throws Exception {
+//                int totalFiles = selectedCsvFiles.size();
+//                StringBuilder errorMessages = new StringBuilder(); // To collect error messages
+//
+//                for (int i = 0; i < totalFiles; i++) {
+//                    File csvFile = selectedCsvFiles.get(i);
+//                    String inputFilePath = csvFile.getAbsolutePath();
+//                    String baseName = csvFile.getName().replaceFirst("[.][^.]+$", "");
+//
+//                    int attemptCount = getAttemptCount(baseName);
+//                    String outputFilePath = baseName + "_attempt_" + attemptCount + ".xlsx";
+//
+//                    try {
+//                        // Modified: Pass back error messages or null if no errors
+//                        String fileSpecificError = String.valueOf(csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea));
+//
+//                        if (fileSpecificError != null && !fileSpecificError.isEmpty()) {
+//                            // Errors within the file were found
+//                            errorMessages.append("There are errors in file: ")
+//                                    .append(csvFile.getName())
+//                                    .append(": 😥\n")
+//                                    .append(fileSpecificError) // Include detailed error from csvProcessor
+//                                    .append("\n");
+//                            Platform.runLater(() -> displayError("See details for file: " + csvFile.getName()));
+//                        } else {
+//                            // No errors within the file were found
+//                            Platform.runLater(() -> displayInfo("Processed " + csvFile.getName() + " successfully!"));
+//                        }
+//
+//                        File outputFile = new File(outputFilePath);
+//                        processedExcelFiles.add(outputFile);
+//
+//                    } catch (IOException e) {
+//                        errorMessages.append("Error processing ")
+//                                .append(csvFile.getName())
+//                                .append(": ")
+//                                .append(e.getMessage())
+//                                .append("\n");
+//                        Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " + e.getMessage()));
+//                    }
+//
+//                    Thread.sleep(100);
+//                }
+//
+//                // Final message after processing all files
+//                final String finalErrorMessages = errorMessages.toString();
+//                Platform.runLater(() -> {
+//                    layout.getChildren().remove(progressIndicator);
+//
+//                    if (finalErrorMessages.isEmpty()) {
+//                        displayInfo("There is no error in the files! 😊");
+//                    } else {
+//                        displayError("There are errors in some files. Please check details below:\n" + finalErrorMessages);
+//                    }
+//                });
+//
+//                return null;
+//            }
+//
+//            @Override
+//            protected void succeeded() {
+//                super.succeeded();
+//            }
+//
+//            @Override
+//            protected void failed() {
+//                super.failed();
+//                Platform.runLater(() -> {
+//                    displayError("File processing failed. Please check the logs.");
+//                    layout.getChildren().remove(progressIndicator);
+//                });
+//            }
+//        };
+//
+//        new Thread(processingTask).start();
+//    }
+
+
 
     // *NEW*: Method to determine the attempt count.
     private int getAttemptCount(String baseName) {
@@ -613,20 +741,40 @@ public class CSVProcessorApp extends Application {
 //        selectedFile.ifPresent(file -> openExcelFile(file));
 //    }
 
+//    private void openExcelFile(File file) {
+//        // Attempt to open the Excel file using the default system application based on OS type
+//        try {
+//            String os = System.getProperty("os.name").toLowerCase();
+//            if (os.contains("win")) {
+//                Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", file.getAbsolutePath()});
+//            } else if (os.contains("mac")) {
+//                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", file.getAbsolutePath()});
+//            } else {
+//                displayError("Unsupported operating system for opening files.");
+//            }
+//        } catch (IOException e) {
+//            displayError("Error opening Excel file: " + e.getMessage());
+//        }
+//    }
+
+
     private void openExcelFile(File file) {
-        // Attempt to open the Excel file using the default system application based on OS type
-        try {
-            String os = System.getProperty("os.name").toLowerCase();
-            if (os.contains("win")) {
-                Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", file.getAbsolutePath()});
-            } else if (os.contains("mac")) {
-                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", file.getAbsolutePath()});
-            } else {
-                displayError("Unsupported operating system for opening files.");
+        if (Desktop.isDesktopSupported()) {
+            Desktop desktop = Desktop.getDesktop();
+
+            try {
+                if (desktop.isSupported(Desktop.Action.OPEN)) {
+                    desktop.open(file);
+                } else {
+                    this.displayError("Opening files is not supported on this system.");
+                }
+            } catch (IOException e) {
+                this.displayError("Error opening Excel file: " + e.getMessage());
             }
-        } catch (IOException e) {
-            displayError("Error opening Excel file: " + e.getMessage());
+        } else {
+            this.displayError("Desktop is not supported on this platform.");
         }
+
     }
 
 //    private void saveExcelFile() {
@@ -854,7 +1002,7 @@ public class CSVProcessorApp extends Application {
         public boolean processCsv(String inputFilePath, String outputFilePath, TextArea errorTextArea) throws IOException {
             try {
                 if (!isFileWritable(outputFilePath)) {
-                    javafx.application.Platform.runLater(() -> errorTextArea.appendText("Error: The output file '" + outputFilePath + "' is open or locked by another process. Please close it and try again.\n"));
+                    Platform.runLater(() -> errorTextArea.appendText("Error: The output file '" + outputFilePath + "' is open or locked by another process. Please close it and try again.\n"));
                     return false;
                 }
 
@@ -887,7 +1035,7 @@ public class CSVProcessorApp extends Application {
                         String errorMessage = "Warning: The following required headers are missing from your CSV file: " + missingHeaders +
                                 ". Please update your CSV file headers to include: " + Arrays.toString(REQUIRED_HEADERS);
                         // Using Platform.runLater to update UI from background thread
-                        javafx.application.Platform.runLater(() -> errorTextArea.appendText(errorMessage + "\n"));
+                        Platform.runLater(() -> errorTextArea.appendText(errorMessage + "\n"));
                         return false;
                         // Returning false to indicate header validation failure
                     }
@@ -1165,6 +1313,57 @@ public class CSVProcessorApp extends Application {
             return true;
         }
 
+//hasError version 1 , assuming row positioning
+//        public boolean hasErrors(File excelFile) throws IOException {
+//            try (FileInputStream fileInputStream = new FileInputStream(excelFile);
+//                 Workbook workbook = new XSSFWorkbook(fileInputStream)) {
+//
+//                // Check if any error sheet has entries
+//                String[] errorSheetNames = {"Invalid - Duplicate SKUs", "Invalid Options", "Other Errors"};
+//                for (String sheetName : errorSheetNames) {
+//                    Sheet sheet = workbook.getSheet(sheetName);
+//                    if (sheet != null && sheet.getPhysicalNumberOfRows() > 2) { // Rows 0 and 1 are headers
+//                        return true; // Errors found
+//                    }
+//                }
+//
+//                // Check if the "Success" sheet has any records with meta status indicating issues
+//                Sheet successSheet = workbook.getSheet("Success");
+//                if (successSheet != null) {
+//                    for (Row row : successSheet) {
+//                        if (row.getRowNum() < 2) continue; // Skip header rows
+//                        Cell metaStatusCell = row.getCell(8); // Assuming meta status is in the 9th column (index 8)
+//                        if (metaStatusCell != null && !metaStatusCell.getStringCellValue().isEmpty()) {
+//                            return true; // Meta issues found
+//                        }
+//                    }
+//                }
+//
+//                return false; // No errors found
+//            }
+//        }
+
+
+
+
+        // Helper method to find the header row dynamically
+        private int findHeaderRow(Sheet sheet, String[] expectedHeaders) {
+            for (Row row : sheet) {
+                boolean isHeaderRow = true;
+                for (int i = 0; i < expectedHeaders.length; i++) {
+                    Cell cell = row.getCell(i);
+                    if (cell == null || !cell.getStringCellValue().equals(expectedHeaders[i])) {
+                        isHeaderRow = false;
+                        break;
+                    }
+                }
+                if (isHeaderRow) {
+                    return row.getRowNum(); // Return the index of the header row
+                }
+            }
+            return -1; // Header row not found
+        }
+
 
         private static void writeErrorsToExcel(String outputFilePath, Map<String, List<ProductError>> errors) throws IOException {
             try (Workbook workbook = new XSSFWorkbook()) {
@@ -1263,6 +1462,57 @@ public class CSVProcessorApp extends Application {
             }
         }
 
+
+
+
+        public boolean hasErrors(File excelFile) throws IOException {
+            try (FileInputStream fileInputStream = new FileInputStream(excelFile);
+                 Workbook workbook = new XSSFWorkbook(fileInputStream)) {
+
+                // Define the expected headers for error sheets
+                String[] expectedErrorHeaders = {"Error Log", "Handle", "Title", "Product Category", "Option 1 Name", "Option 1 Value", "Option 2 Name", "Option 2 Value", "Variant SKU", "Meta Status"};
+
+                // Check if any error sheet has entries
+                String[] errorSheetNames = {"Invalid - Duplicate SKUs", "Invalid Options", "Other Errors"};
+                for (String sheetName : errorSheetNames) {
+                    Sheet sheet = workbook.getSheet(sheetName);
+                    if (sheet != null) {
+                        // Find the header row dynamically
+                        int headerRowIndex = findHeaderRow(sheet, expectedErrorHeaders);
+                        if (headerRowIndex != -1) {
+                            // Check if there are any rows after the header row
+                            if (sheet.getPhysicalNumberOfRows() > headerRowIndex + 1) {
+                                return true; // Errors found
+                            }
+                        }
+                    }
+                }
+
+                // Define the expected headers for the success sheet
+                String[] expectedSuccessHeaders = {"Handle", "Title", "Product Category", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Variant SKU", "Meta Status"};
+
+                // Check if the "Success" sheet has any records with meta status indicating issues
+                Sheet successSheet = workbook.getSheet("Success");
+                if (successSheet != null) {
+                    // Find the header row dynamically
+                    int headerRowIndex = findHeaderRow(successSheet, expectedSuccessHeaders);
+                    if (headerRowIndex != -1) {
+                        // Iterate through rows after the header row
+                        for (int i = headerRowIndex + 1; i <= successSheet.getLastRowNum(); i++) {
+                            Row row = successSheet.getRow(i);
+                            if (row != null) {
+                                Cell metaStatusCell = row.getCell(8); // Assuming meta status is in the 9th column (index 8)
+                                if (metaStatusCell != null && !metaStatusCell.getStringCellValue().isEmpty()) {
+                                    return true; // Meta issues found
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return false; // No errors found
+            }
+        }
 
 
 
