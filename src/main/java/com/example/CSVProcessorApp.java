@@ -681,7 +681,6 @@ public class CSVProcessorApp extends Application {
             Workbook newWorkbook = new XSSFWorkbook();
             Sheet newSheet = newWorkbook.createSheet("Filtered Success");
 
-            // Define the required columns and their new indexes
             Map<String, Integer> columnIndexMap = new HashMap<>();
             columnIndexMap.put("Handle", 0);
             columnIndexMap.put("Title", 1);
@@ -691,14 +690,12 @@ public class CSVProcessorApp extends Application {
             columnIndexMap.put("Option2 Value", 12);
             columnIndexMap.put("Variant SKU", 17);
 
-            // Create header row in the new sheet
             Row headerRow = newSheet.createRow(0);
             for (Map.Entry<String, Integer> entry : columnIndexMap.entrySet()) {
                 Cell cell = headerRow.createCell(entry.getValue());
                 cell.setCellValue(entry.getKey());
             }
 
-            // Get the actual column indexes from the Success sheet's second row (index 1)
             Map<String, Integer> sourceColumnIndexMap = new HashMap<>();
             Row headerRowSource = successSheet.getRow(1);
             if (headerRowSource != null) {
@@ -711,7 +708,6 @@ public class CSVProcessorApp extends Application {
                 }
             }
 
-            // Check if all required source columns exist
             Set<String> requiredSourceColumns = new HashSet<>(columnIndexMap.keySet());
             requiredSourceColumns.add("Meta Status");
             if (!sourceColumnIndexMap.keySet().containsAll(requiredSourceColumns)) {
@@ -720,7 +716,8 @@ public class CSVProcessorApp extends Application {
                 return;
             }
 
-            // Filter rows and reorder columns
+            List<String> variantSKUs = new ArrayList<>();
+
             int rowIndex = 1;
             for (int i = 2; i <= successSheet.getLastRowNum(); i++) {
                 Row dataRow = successSheet.getRow(i);
@@ -733,7 +730,6 @@ public class CSVProcessorApp extends Application {
                         if (!metaStatus.equals("Meta product is missing") && !metaStatus.equals("Meta product has errors")) {
                             Row newRow = newSheet.createRow(rowIndex++);
 
-                            // Populate the new row based on columnIndexMap and sourceColumnIndexMap
                             for (Map.Entry<String, Integer> entry : columnIndexMap.entrySet()) {
                                 String columnName = entry.getKey();
                                 Integer destColumnIndex = entry.getValue();
@@ -747,6 +743,9 @@ public class CSVProcessorApp extends Application {
                                         switch (sourceCell.getCellType()) {
                                             case STRING:
                                                 newCell.setCellValue(sourceCell.getStringCellValue());
+                                                if (columnName.equals("Variant SKU")) {
+                                                    variantSKUs.add("('" + sourceCell.getStringCellValue() + "')");
+                                                }
                                                 break;
                                             case NUMERIC:
                                                 newCell.setCellValue(sourceCell.getNumericCellValue());
@@ -760,6 +759,9 @@ public class CSVProcessorApp extends Application {
                                                 switch (cellValue.getCellType()) {
                                                     case STRING:
                                                         newCell.setCellValue(cellValue.getStringValue());
+                                                        if (columnName.equals("Variant SKU")) {
+                                                            variantSKUs.add("('" + cellValue.getStringValue() + "')");
+                                                        }
                                                         break;
                                                     case NUMERIC:
                                                         newCell.setCellValue(cellValue.getNumberValue());
@@ -786,11 +788,20 @@ public class CSVProcessorApp extends Application {
                 }
             }
 
-            // Save the filtered Excel file
+            String query = "SELECT \n    p.productcode\nFROM \n    (VALUES " + String.join(", ", variantSKUs) + ") AS p(productcode)\nLEFT JOIN \n    productitem pi ON p.productcode = pi.productcode\nWHERE \n    pi.productcode IS NULL;";
+
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Save Corrected Output");
             fileChooser.setInitialFileName("CorrectedOutput.xlsx");
             File outputFile = fileChooser.showSaveDialog(null);
+
+
+            FileChooser sqlFileChooser = new FileChooser();
+            sqlFileChooser.setTitle("Save SQL Query");
+            sqlFileChooser.setInitialFileName("query.sql");
+            File sqlFile = sqlFileChooser.showSaveDialog(null);
+
+
 
             if (outputFile != null) {
                 try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
@@ -802,12 +813,24 @@ public class CSVProcessorApp extends Application {
                 displayInfo("File save canceled.");
             }
 
+            if (sqlFile != null) {
+                try (FileWriter writer = new FileWriter(sqlFile)) {
+                    writer.write(query);
+                    displayInfo("SQL query saved successfully.");
+                } catch (IOException e) {
+                    displayError("Error saving SQL file: " + e.getMessage());
+                }
+            }
+
+
         } catch (IOException e) {
             displayError("Error processing file: " + e.getMessage());
         } catch (IllegalArgumentException e) {
             displayError("Error reading Excel file: " + e.getMessage());
         }
     }
+
+
 
 
 
