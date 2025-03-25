@@ -174,18 +174,25 @@ public class CSVProcessorApp extends Application {
             System.out.println("Clear Selected Files Button Clicked");
             clearSelectedFiles();
         });
+        Button correctedOutputButton = new Button("Corrected Output");
+        correctedOutputButton.setPrefWidth(250);
+        correctedOutputButton.setOnAction(e -> {
+            System.out.println("Corrected Output Button Clicked");
+            chooseProcessedFileAndGenerateCorrectedOutput();
+        });
+
 
         HBox buttonContainer = new HBox(10);
         buttonContainer.setAlignment(Pos.CENTER);
         buttonContainer.setPadding(new Insets(10));
         buttonContainer.getChildren().addAll(selectCsvButton, processButton, viewExcelButton, saveExcelButton);
-
-
+        buttonContainer.getChildren().addAll(correctedOutputButton);
 
         VBox saveClearButtonContainer = new VBox(10);
         saveClearButtonContainer.setAlignment(Pos.CENTER_RIGHT);
 
         saveClearButtonContainer.getChildren().addAll( clearSelectedFilesButton);
+
 
 
 
@@ -262,7 +269,7 @@ public class CSVProcessorApp extends Application {
 
 
         // Create and set the scene
-        Scene scene = new Scene(layout, 850, 600);
+        Scene scene = new Scene(layout, 950, 600);
 
         selectCsvButton.setOnAction(e -> {
             System.out.println("Select CSV Button Clicked");
@@ -413,6 +420,9 @@ public class CSVProcessorApp extends Application {
 //            selectedFileLabel.setText("No files selected.");
 //        }
 //    }
+
+
+
 
 
     private void selectCsvFile() {
@@ -632,6 +642,182 @@ public class CSVProcessorApp extends Application {
 //
 //        new Thread(processingTask).start();
 //    }
+
+
+    private void chooseProcessedFileAndGenerateCorrectedOutput() {
+        if (processedExcelFiles.isEmpty()) {
+            displayError("No processed Excel files available.");
+            return;
+        }
+
+        ChoiceDialog<File> dialog = new ChoiceDialog<>(processedExcelFiles.get(0), processedExcelFiles);
+        dialog.setTitle("Choose Processed File");
+        dialog.setHeaderText("Select the processed Excel file to generate corrected output from:");
+        dialog.setContentText("Choose a file:");
+
+        applyDialogStyle(dialog);
+
+        Optional<File> result = dialog.showAndWait();
+        result.ifPresent(this::generateCorrectedOutput);
+    }
+
+
+
+    private void generateCorrectedOutput(File selectedExcelFile) {
+        if (selectedExcelFile == null) {
+            displayError("No file selected.");
+            return;
+        }
+
+        try (FileInputStream fis = new FileInputStream(selectedExcelFile);
+             Workbook workbook = new XSSFWorkbook(fis)) {
+
+            Sheet successSheet = workbook.getSheet("Success");
+            if (successSheet == null) {
+                displayError("Sheet 'Success' not found in the selected Excel file.");
+                return;
+            }
+
+            Workbook newWorkbook = new XSSFWorkbook();
+            Sheet newSheet = newWorkbook.createSheet("Filtered Success");
+
+            // Define the required columns and their new indexes
+            Map<String, Integer> columnIndexMap = new HashMap<>();
+            columnIndexMap.put("Handle", 0);
+            columnIndexMap.put("Title", 1);
+            columnIndexMap.put("Option1 Name", 8);
+            columnIndexMap.put("Option1 Value", 9);
+            columnIndexMap.put("Option2 Name", 11);
+            columnIndexMap.put("Option2 Value", 12);
+            columnIndexMap.put("Variant SKU", 17);
+
+            // Create header row in the new sheet
+            Row headerRow = newSheet.createRow(0);
+            for (Map.Entry<String, Integer> entry : columnIndexMap.entrySet()) {
+                Cell cell = headerRow.createCell(entry.getValue());
+                cell.setCellValue(entry.getKey());
+            }
+
+            // Get the actual column indexes from the Success sheet's second row (index 1)
+            Map<String, Integer> sourceColumnIndexMap = new HashMap<>();
+            Row headerRowSource = successSheet.getRow(1);
+            if (headerRowSource != null) {
+                for (int i = 0; i < headerRowSource.getLastCellNum(); i++) {
+                    Cell cell = headerRowSource.getCell(i);
+                    if (cell != null) {
+                        String cellValue = cell.getStringCellValue().trim();
+                        sourceColumnIndexMap.put(cellValue, i);
+                    }
+                }
+            }
+
+            // Check if all required source columns exist
+            Set<String> requiredSourceColumns = new HashSet<>(columnIndexMap.keySet());
+            requiredSourceColumns.add("Meta Status");
+            if (!sourceColumnIndexMap.keySet().containsAll(requiredSourceColumns)) {
+                requiredSourceColumns.removeAll(sourceColumnIndexMap.keySet());
+                displayError("Missing required columns in 'Success' sheet: " + String.join(", ", requiredSourceColumns));
+                return;
+            }
+
+            // Filter rows and reorder columns
+            int rowIndex = 1;
+            for (int i = 2; i <= successSheet.getLastRowNum(); i++) {
+                Row dataRow = successSheet.getRow(i);
+                if (dataRow != null) {
+                    Integer metaStatusColumnIndex = sourceColumnIndexMap.get("Meta Status");
+                    if (metaStatusColumnIndex != null) {
+                        Cell metaStatusCell = dataRow.getCell(metaStatusColumnIndex);
+                        String metaStatus = (metaStatusCell != null && metaStatusCell.getCellType() == CellType.STRING) ? metaStatusCell.getStringCellValue() : "";
+
+                        if (!metaStatus.equals("Meta product is missing") && !metaStatus.equals("Meta product has errors")) {
+                            Row newRow = newSheet.createRow(rowIndex++);
+
+                            // Populate the new row based on columnIndexMap and sourceColumnIndexMap
+                            for (Map.Entry<String, Integer> entry : columnIndexMap.entrySet()) {
+                                String columnName = entry.getKey();
+                                Integer destColumnIndex = entry.getValue();
+                                Integer sourceColumnIndex = sourceColumnIndexMap.get(columnName);
+
+                                if (sourceColumnIndex != null) {
+                                    Cell sourceCell = dataRow.getCell(sourceColumnIndex);
+                                    Cell newCell = newRow.createCell(destColumnIndex);
+
+                                    if (sourceCell != null) {
+                                        switch (sourceCell.getCellType()) {
+                                            case STRING:
+                                                newCell.setCellValue(sourceCell.getStringCellValue());
+                                                break;
+                                            case NUMERIC:
+                                                newCell.setCellValue(sourceCell.getNumericCellValue());
+                                                break;
+                                            case BOOLEAN:
+                                                newCell.setCellValue(sourceCell.getBooleanCellValue());
+                                                break;
+                                            case FORMULA:
+                                                FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+                                                CellValue cellValue = evaluator.evaluate(sourceCell);
+                                                switch (cellValue.getCellType()) {
+                                                    case STRING:
+                                                        newCell.setCellValue(cellValue.getStringValue());
+                                                        break;
+                                                    case NUMERIC:
+                                                        newCell.setCellValue(cellValue.getNumberValue());
+                                                        break;
+                                                    case BOOLEAN:
+                                                        newCell.setCellValue(cellValue.getBooleanValue());
+                                                        break;
+                                                    default:
+                                                        newCell.setCellValue("");
+                                                        break;
+                                                }
+                                                break;
+                                            default:
+                                                newCell.setCellValue("");
+                                                break;
+                                        }
+                                    } else {
+                                        newCell.setCellValue("");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Save the filtered Excel file
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Save Corrected Output");
+            fileChooser.setInitialFileName("CorrectedOutput.xlsx");
+            File outputFile = fileChooser.showSaveDialog(null);
+
+            if (outputFile != null) {
+                try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
+                    newWorkbook.write(outputStream);
+                    displayInfo("Corrected output saved successfully.");
+                }
+                processedExcelFiles.add(outputFile);
+            } else {
+                displayInfo("File save canceled.");
+            }
+
+        } catch (IOException e) {
+            displayError("Error processing file: " + e.getMessage());
+        } catch (IllegalArgumentException e) {
+            displayError("Error reading Excel file: " + e.getMessage());
+        }
+    }
+
+
+
+
+
+
+
+
+
+
 
 
 
