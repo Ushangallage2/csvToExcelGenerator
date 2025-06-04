@@ -3,8 +3,10 @@ package com.example;
 
 import javafx.animation.FadeTransition;
 import javafx.application.Application;
+import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
@@ -39,6 +41,7 @@ import java.util.stream.Collectors;
 import javafx.util.Duration;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVPrinter;
 import org.apache.commons.csv.CSVRecord;
 import org.apache.commons.io.input.BOMInputStream;
 import org.apache.poi.ss.usermodel.*;
@@ -54,6 +57,9 @@ public class CSVProcessorApp extends Application {
     private File processedExcelFile;
     private TextArea errorTextArea;
     private Label selectedFileLabel;
+    @FXML
+    private Label variationSelectedFileLabel;
+
     private final CsvProcessor csvProcessor = new CsvProcessor();
     private List<File> selectedCsvFiles = new ArrayList<>();
     private List<File> processedExcelFiles = new ArrayList<>();
@@ -64,6 +70,10 @@ public class CSVProcessorApp extends Application {
     private String cssFilePath;
     private ProgressBar progressBar;  // Add ProgressBar
     private Label progressLabel; // Add Label for progress text
+
+
+    private Button saveTemplate1;
+    private Button processTemplate1;
 
     public static void main(String[] args) {
         launch(args);
@@ -128,8 +138,15 @@ public class CSVProcessorApp extends Application {
     }
 
     private void clearSelectedFiles() {
+
+        saveTemplate1.setText("save Template");
+        processTemplate1.setText("process Template");
+        errorTextArea.clear();
+        processedExcelFiles.clear();
         selectedCsvFiles.clear();
-        selectedFileLabel.setText("No file selected");
+        savedExcelFiles.clear();
+        variationSelectedFileLabel.setText("No variant upload file selected");
+        selectedFileLabel.setText("No CSV file selected");
     }
 
 
@@ -169,9 +186,27 @@ public class CSVProcessorApp extends Application {
         Button processButton = new Button("Process CSV");
         Button viewExcelButton = new Button("View Excel File");
         Button saveExcelButton = new Button("Save Excel File");
-        Button clearSelectedFilesButton = new Button("Clear Selected");
+        Button clearSelectedFilesButton = new Button("Clear All");
+        ComboBox<String> uploadFileTypeComboBox = new ComboBox<>();
+
+        // Add options to the ComboBox
+        uploadFileTypeComboBox.getItems().addAll(
+                "Variation Upload File",
+                "Product Upload File"
+        );
+
+        // Optionally set a default value
+        uploadFileTypeComboBox.setValue("Variation Upload File");
+
+
+        processTemplate1 = new Button("process Template");
+
+
+
+        saveTemplate1 = new Button("save Template");
+
         clearSelectedFilesButton.setOnAction(e -> {
-            System.out.println("Clear Selected Files Button Clicked");
+            System.out.println("Clear all Button Clicked");
             clearSelectedFiles();
         });
         Button correctedOutputButton = new Button("Corrected Output");
@@ -182,23 +217,74 @@ public class CSVProcessorApp extends Application {
         });
 
 
+
+
+
+        //eventlistener for the dropbox
+
+        uploadFileTypeComboBox.setOnHidden(event -> {
+            String selected = uploadFileTypeComboBox.getValue();
+            Stage stage = (Stage) uploadFileTypeComboBox.getScene().getWindow();
+
+            if ("Variation Upload File".equals(selected)) {
+                processTemplate1.setText("process " + uploadFileTypeComboBox.getValue());
+                handleProductUploadFile(stage);
+            } else if ("Product Upload File".equals(selected)) {
+                processTemplate1.setText("process " + uploadFileTypeComboBox.getValue());
+                handleProductUploadFile(stage);
+            }
+        });
+
+
+
+
+        processTemplate1.setOnAction(e -> {
+            String selected = uploadFileTypeComboBox.getValue();
+            if ("Variation Upload File".equals(selected)) {
+                try {
+                    processVariationUpload();
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+            // else if for "Product Upload File" (to be implemented)
+        });
+
+
+
+
         HBox buttonContainer = new HBox(10);
         buttonContainer.setAlignment(Pos.CENTER);
         buttonContainer.setPadding(new Insets(10));
         buttonContainer.getChildren().addAll(selectCsvButton, processButton, viewExcelButton, saveExcelButton);
         buttonContainer.getChildren().addAll(correctedOutputButton);
 
-        VBox saveClearButtonContainer = new VBox(10);
+        HBox saveClearButtonContainer = new HBox(15);
         saveClearButtonContainer.setAlignment(Pos.CENTER_RIGHT);
+        saveClearButtonContainer.setPadding(new Insets(10));
 
-        saveClearButtonContainer.getChildren().addAll( clearSelectedFilesButton);
+        // Create a spacer region
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        // Add nodes: inputTemplate1 | processTemplate1 | saveTemplate1 | spacer | clearSelectedFilesButton
+        saveClearButtonContainer.getChildren().addAll(
+                uploadFileTypeComboBox,
+                processTemplate1,
+                saveTemplate1,
+                spacer,
+                clearSelectedFilesButton
+        );
+
+
+        variationSelectedFileLabel= new Label("No Variation upload file selected");
+        errorTextArea = new TextArea();
+        errorTextArea.setEditable(false);
+        errorTextArea.setPrefHeight(250);
 
 
 
-
-
-
-        selectedFileLabel = new Label("No file selected");
+        selectedFileLabel = new Label("No CSV file selected");
         errorTextArea = new TextArea();
         errorTextArea.setEditable(false);
         errorTextArea.setPrefHeight(150);
@@ -253,7 +339,7 @@ public class CSVProcessorApp extends Application {
         });
 
         clearSelectedFilesButton.setStyle("-fx-background-color: #d4af37; -fx-text-fill: black; -fx-font-weight: bold; -fx-font-size: 14px; -fx-background-radius: 30; -fx-padding: 10 20; -fx-translate-x: -7;");
-
+        uploadFileTypeComboBox.setStyle("-fx-background-color: #d4af37; -fx-text-fill: black; -fx-font-weight: bold; -fx-font-size: 14px; -fx-background-radius: 30; -fx-padding: 10 20; -fx-translate-x: -7;");
 
         // Bind buttons to stage width for responsiveness
         selectCsvButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
@@ -265,7 +351,7 @@ public class CSVProcessorApp extends Application {
         // Main Layout
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));
-        layout.getChildren().addAll(buttonContainer, saveClearButtonContainer, selectedFileLabel, new Label("Messages/Warnings:"), errorTextArea, toggleInstructionsButton, instructionsLabel);
+        layout.getChildren().addAll(buttonContainer, saveClearButtonContainer, selectedFileLabel,variationSelectedFileLabel, new Label("Messages/Warnings:"), errorTextArea, toggleInstructionsButton, instructionsLabel);
 
 
         // Create and set the scene
@@ -287,6 +373,12 @@ public class CSVProcessorApp extends Application {
             System.out.println("Save Excel Button Clicked");
             saveExcelFile();
         });
+
+
+
+
+
+
 
 
         if (cssFilePath != null) {
@@ -319,6 +411,12 @@ public class CSVProcessorApp extends Application {
                 System.out.println("Loading recent input folder: " + recentInputFolder);
             }
         }
+
+
+
+
+
+
 
 
         primaryStage.setOnCloseRequest(event -> {
@@ -400,28 +498,283 @@ public class CSVProcessorApp extends Application {
         });
 
         primaryStage.show();
+
+
     }
 
 
 
-//    private void selectCsvFile() {
-//        FileChooser fileChooser = new FileChooser();
-//        fileChooser.setTitle("Select CSV Files");
-//        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files", "*.csv"));
-//        List<File> selectedFiles = fileChooser.showOpenMultipleDialog(new Stage());
-//
-//        if (selectedFiles != null && !selectedFiles.isEmpty()) {
-//            // Store selected files in a list (you may want to define a list variable like List<File> selectedCsvFiles)
-//            selectedCsvFiles.clear(); // Clear previous selections if any
-//            selectedCsvFiles.addAll(selectedFiles);
-//            selectedFileLabel.setText(selectedFiles.size() + " files selected.");
-//        } else {
-//            selectedCsvFiles.clear();
-//            selectedFileLabel.setText("No files selected.");
-//        }
-//    }
 
 
+    private void processVariationUpload() throws IOException {
+        errorTextArea.clear();
+
+        if (selectedCsvFiles.isEmpty()) {
+            errorTextArea.setText("No file selected.");
+            return;
+        }
+
+        File csvFile = selectedCsvFiles.get(0);
+        List<String> errors = new ArrayList<>();
+        List<VariationRecord> validRecords = new ArrayList<>();
+        Set<String> variationNames = new HashSet<>();
+        Set<String> productCodes = new HashSet<>();
+        Set<String> duplicateVariationNames = new HashSet<>();
+        Set<String> duplicateProductCodes = new HashSet<>();
+
+        // Step 1: Read raw lines
+        List<String> lines = Files.readAllLines(csvFile.toPath(), StandardCharsets.UTF_8);
+
+        // Step 2: Trim trailing commas in header
+        String cleanedHeaderLine = lines.get(0).replaceAll(",\\s*$", "");
+
+        // Step 3: Replace header and rejoin for parser
+        lines.set(0, cleanedHeaderLine);
+        String cleanedCsvContent = String.join("\n", lines);
+
+        // Step 4: Parse cleaned content
+        try (Reader cleanedReader = new StringReader(cleanedCsvContent)) {
+            CSVParser parser = new CSVParser(cleanedReader, CSVFormat.DEFAULT
+                    .withFirstRecordAsHeader()
+                    .withIgnoreHeaderCase()
+                    .withTrim());
+
+
+            Map<String, Integer> headerMap = parser.getHeaderMap();
+            List<String> requiredHeaders = Arrays.asList("variation_name", "option1", "option2", "product_code");
+
+            // Check required headers
+            for (String required : requiredHeaders) {
+                if (!headerMap.containsKey(required)) {
+                    errorTextArea.setText("Missing required header: " + required);
+                    return;
+                }
+            }
+
+            int rowNum = 1 + 1; // header + 1-based indexing
+            for (CSVRecord record : parser) {
+                String variationName = record.get("variation_name").trim();
+                String option1 = record.get("option1").trim();
+                String option2 = record.get("option2").trim();
+                String productCode = record.get("product_code").trim();
+
+                if (variationName.isEmpty()) {
+                    rowNum++;
+                    continue;
+                }
+
+                if (option1.isEmpty() && option2.isEmpty()) {
+                    errors.add("Row " + rowNum + ": Must have at least option1 or option2 for variation_name: " + variationName);
+                    rowNum++;
+                    continue;
+                }
+
+                if (!option2.isEmpty() && option1.isEmpty()) {
+                    errors.add("Row " + rowNum + ": Has option2 but missing option1 for variation_name: " + variationName);
+                    rowNum++;
+                    continue;
+                }
+
+                if (!variationNames.add(variationName)) {
+                    duplicateVariationNames.add(variationName);
+                    rowNum++;
+                    continue;
+                }
+
+                if (!productCode.isEmpty() && !productCodes.add(productCode)) {
+                    duplicateProductCodes.add(productCode);
+                    rowNum++;
+                    continue;
+                }
+
+                validRecords.add(new VariationRecord(variationName, option1, option2, productCode));
+                rowNum++;
+            }
+
+            if (!duplicateVariationNames.isEmpty()) {
+                errors.add("Duplicate variation_name(s): " + String.join(", ", duplicateVariationNames));
+            }
+            if (!duplicateProductCodes.isEmpty()) {
+                errors.add("Duplicate product_code(s): " + String.join(", ", duplicateProductCodes));
+            }
+
+            if (!validRecords.isEmpty()) {
+                File outFile = new File(csvFile.getParent(), "variation_upload_processed.csv");
+                try (BufferedWriter writer = Files.newBufferedWriter(outFile.toPath(), StandardCharsets.UTF_8)) {
+                    CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT
+                            .withHeader("variation_name", "option1", "option2", "meta_product_code"));
+
+                    for (VariationRecord record : validRecords) {
+                        printer.printRecord(
+                                record.getVariationName(),
+                                record.getOption1(),
+                                record.getOption2(),
+                                record.getProductCode()
+                        );
+                    }
+
+                    printer.flush();
+                    errors.add("Processed file saved as: " + outFile.getAbsolutePath());
+                    saveTemplate1.setText("save Variation Upload File");
+                }
+            } else {
+                errors.add("No valid records to write.");
+            }
+
+            errorTextArea.setText(String.join("\n", errors));
+
+        } catch (Exception ex) {
+            errorTextArea.setText("Error processing file: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
+
+
+
+
+    private String getCellValue(String[] row, int index) {
+        return (index >= 0 && index < row.length) ? row[index].trim() : "";
+    }
+
+
+
+
+
+
+
+
+
+    private void handleProductUploadFile(Stage stage) {
+        // Your existing code, but replace 'yourStage' with this 'stage' parameter
+
+        saveTemplate1.setText("save Template");
+
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Select CSV or Numbers Files");
+
+        FileChooser.ExtensionFilter csvFilter = new FileChooser.ExtensionFilter("CSV Files (*.csv)", "*.csv");
+        FileChooser.ExtensionFilter numbersFilter = new FileChooser.ExtensionFilter("Numbers Files (*.numbers)", "*.numbers");
+        fileChooser.getExtensionFilters().addAll(csvFilter, numbersFilter);
+
+        // Load preference and set initial directory as before
+        String recentInputFolder = loadPreference(RECENT_INPUT_FOLDER_KEY, "");
+        if (!recentInputFolder.isEmpty()) {
+            File initialDir = new File(recentInputFolder);
+            if (initialDir.exists() && initialDir.isDirectory()) {
+                fileChooser.setInitialDirectory(initialDir);
+            }
+        }
+
+        List<File> selectedFiles = fileChooser.showOpenMultipleDialog(stage);
+
+        if (selectedFiles == null || selectedFiles.isEmpty()) {
+            displayError("No files selected. Please select a file.");
+            return;
+        }
+
+        savePreference(RECENT_INPUT_FOLDER_KEY, selectedFiles.get(0).getParent());
+
+        List<File> csvFilesToProcess = new ArrayList<>();
+
+        for (File file : selectedFiles) {
+            String fileName = file.getName().toLowerCase();
+
+            if (fileName.endsWith(".csv")) {
+                csvFilesToProcess.add(file);
+            } else if (fileName.endsWith(".numbers")) {
+                displayError(
+                        "The selected file \"" + file.getName() + "\" is a .numbers file.\n\n" +
+                                "Please convert it to CSV using this online tool:\n" +
+                                "https://cloudconvert.com/numbers-to-csv"
+                );
+            } else {
+                displayError("Invalid file type selected: " + file.getName() + "\nPlease select only .csv or .numbers files.");
+            }
+        }
+
+        if (!csvFilesToProcess.isEmpty()) {
+            selectedCsvFiles.addAll(csvFilesToProcess);
+
+            // Update label with count
+            int selectedCount = csvFilesToProcess.size();
+            variationSelectedFileLabel.setText(selectedCount + (selectedCount == 1 ? " file selected." : " files selected."));
+
+            System.out.println("CSV files ready for processing:");
+            csvFilesToProcess.forEach(f -> System.out.println(f.getAbsolutePath()));
+
+            // TODO: Add your CSV processing logic here
+        } else {
+            variationSelectedFileLabel.setText("No valid CSV files selected.");
+        }
+
+
+
+
+
+    }
+
+
+    //questionable select file method
+
+    private void handleVariationUploadFile(Stage stage) {
+        // Your existing code, but replace 'yourStage' with this 'stage' parameter
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Select CSV or Numbers Files");
+
+        FileChooser.ExtensionFilter csvFilter = new FileChooser.ExtensionFilter("CSV Files (*.csv)", "*.csv");
+        FileChooser.ExtensionFilter numbersFilter = new FileChooser.ExtensionFilter("Numbers Files (*.numbers)", "*.numbers");
+        fileChooser.getExtensionFilters().addAll(csvFilter, numbersFilter);
+
+        // Load preference and set initial directory as before
+        String recentInputFolder = loadPreference(RECENT_INPUT_FOLDER_KEY, "");
+        if (!recentInputFolder.isEmpty()) {
+            File initialDir = new File(recentInputFolder);
+            if (initialDir.exists() && initialDir.isDirectory()) {
+                fileChooser.setInitialDirectory(initialDir);
+            }
+        }
+
+        List<File> selectedFiles = fileChooser.showOpenMultipleDialog(stage);
+
+        if (selectedFiles == null || selectedFiles.isEmpty()) {
+            displayError("No files selected. Please select a file.");
+            return;
+        }
+
+        savePreference(RECENT_INPUT_FOLDER_KEY, selectedFiles.get(0).getParent());
+
+        List<File> csvFilesToProcess = new ArrayList<>();
+
+        for (File file : selectedFiles) {
+            String fileName = file.getName().toLowerCase();
+
+            if (fileName.endsWith(".csv")) {
+                csvFilesToProcess.add(file);
+            } else if (fileName.endsWith(".numbers")) {
+                displayError(
+                        "The selected file \"" + file.getName() + "\" is a .numbers file.\n\n" +
+                                "Please convert it to CSV using this online tool:\n" +
+                                "https://cloudconvert.com/numbers-to-csv"
+                );
+            } else {
+                displayError("Invalid file type selected: " + file.getName() + "\nPlease select only .csv or .numbers files.");
+            }
+        }
+
+        if (!csvFilesToProcess.isEmpty()) {
+            // Update label with count
+            int selectedCount = csvFilesToProcess.size();
+            variationSelectedFileLabel.setText(selectedCount + (selectedCount == 1 ? " file selected." : " files selected."));
+
+            System.out.println("CSV files ready for processing:");
+            csvFilesToProcess.forEach(f -> System.out.println(f.getAbsolutePath()));
+
+            // TODO: Add your CSV processing logic here
+        } else {
+            selectedFileLabel.setText("No valid CSV files selected.");
+        }
+
+    }
 
 
 
@@ -496,16 +849,6 @@ public class CSVProcessorApp extends Application {
                     int attemptCount = getAttemptCount(baseName);
                     String outputFilePath = baseName + "_attempt_" + attemptCount + ".xlsx"; // Unique name
 
-//                    try {
-//                        boolean success = csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea);
-//                        if (success) {
-//                            File outputFile = new File(outputFilePath);
-//                            processedExcelFiles.add(outputFile);
-//                            Platform.runLater(() -> displayInfo("Processed " + csvFile.getName() + " to " + outputFile.getName()));
-//                        }
-//                    } catch (IOException e) {
-//                        Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " + e.getMessage()));
-//                    }
                     try {
                         boolean success = csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea);
                         if (success) {
@@ -542,8 +885,9 @@ public class CSVProcessorApp extends Application {
             @Override
             protected void failed() {
                 super.failed();
+                Throwable error = getException(); // Get the actual exception
                 Platform.runLater(() -> {
-                    displayError("File processing failed. Please check the logs.");
+                    displayError("File processing failed: " + (error != null ? error.getMessage() : "Unknown error"));
                     layout.getChildren().remove(progressIndicator); // Remove ProgressIndicator
                 });
             }
@@ -551,97 +895,6 @@ public class CSVProcessorApp extends Application {
 
         new Thread(processingTask).start(); // Start the processing task in a new thread
     }
-
-//    private void processCsvFile() {
-//        if (selectedCsvFiles.isEmpty()) {
-//            displayError("Please select CSV files first.");
-//            return;
-//        }
-//
-//        VBox layout = (VBox) errorTextArea.getParent();
-//        ProgressIndicator progressIndicator = new ProgressIndicator();
-//        progressIndicator.setProgress(-1.0);
-//        progressIndicator.setVisible(true);
-//        layout.getChildren().add(progressIndicator);
-//
-//        Task<Void> processingTask = new Task<Void>() {
-//            @Override
-//            protected Void call() throws Exception {
-//                int totalFiles = selectedCsvFiles.size();
-//                StringBuilder errorMessages = new StringBuilder(); // To collect error messages
-//
-//                for (int i = 0; i < totalFiles; i++) {
-//                    File csvFile = selectedCsvFiles.get(i);
-//                    String inputFilePath = csvFile.getAbsolutePath();
-//                    String baseName = csvFile.getName().replaceFirst("[.][^.]+$", "");
-//
-//                    int attemptCount = getAttemptCount(baseName);
-//                    String outputFilePath = baseName + "_attempt_" + attemptCount + ".xlsx";
-//
-//                    try {
-//                        // Modified: Pass back error messages or null if no errors
-//                        String fileSpecificError = String.valueOf(csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea));
-//
-//                        if (fileSpecificError != null && !fileSpecificError.isEmpty()) {
-//                            // Errors within the file were found
-//                            errorMessages.append("There are errors in file: ")
-//                                    .append(csvFile.getName())
-//                                    .append(": 😥\n")
-//                                    .append(fileSpecificError) // Include detailed error from csvProcessor
-//                                    .append("\n");
-//                            Platform.runLater(() -> displayError("See details for file: " + csvFile.getName()));
-//                        } else {
-//                            // No errors within the file were found
-//                            Platform.runLater(() -> displayInfo("Processed " + csvFile.getName() + " successfully!"));
-//                        }
-//
-//                        File outputFile = new File(outputFilePath);
-//                        processedExcelFiles.add(outputFile);
-//
-//                    } catch (IOException e) {
-//                        errorMessages.append("Error processing ")
-//                                .append(csvFile.getName())
-//                                .append(": ")
-//                                .append(e.getMessage())
-//                                .append("\n");
-//                        Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " + e.getMessage()));
-//                    }
-//
-//                    Thread.sleep(100);
-//                }
-//
-//                // Final message after processing all files
-//                final String finalErrorMessages = errorMessages.toString();
-//                Platform.runLater(() -> {
-//                    layout.getChildren().remove(progressIndicator);
-//
-//                    if (finalErrorMessages.isEmpty()) {
-//                        displayInfo("There is no error in the files! 😊");
-//                    } else {
-//                        displayError("There are errors in some files. Please check details below:\n" + finalErrorMessages);
-//                    }
-//                });
-//
-//                return null;
-//            }
-//
-//            @Override
-//            protected void succeeded() {
-//                super.succeeded();
-//            }
-//
-//            @Override
-//            protected void failed() {
-//                super.failed();
-//                Platform.runLater(() -> {
-//                    displayError("File processing failed. Please check the logs.");
-//                    layout.getChildren().remove(progressIndicator);
-//                });
-//            }
-//        };
-//
-//        new Thread(processingTask).start();
-//    }
 
 
     private void chooseProcessedFileAndGenerateCorrectedOutput() {
@@ -830,18 +1083,7 @@ public class CSVProcessorApp extends Application {
         }
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
+    
 
 
     // *NEW*: Method to determine the attempt count.
@@ -886,86 +1128,6 @@ public class CSVProcessorApp extends Application {
         selectedFile.ifPresent(this::openExcelFile);
     }
 
-//    private void openExcelFile(File file) {
-//        // Obtain the Desktop instance
-//        if (Desktop.isDesktopSupported()) {
-//            Desktop desktop = Desktop.getDesktop();
-//            try {
-//                // Ensure the action is supported
-//                if (desktop.isSupported(Desktop.Action.OPEN)) {
-//                    desktop.open(file);
-//                } else {
-//                    displayError("Opening files is not supported on this system.");
-//                }
-//            } catch (IOException e) {
-//                displayError("Error opening Excel file: " + e.getMessage());
-//            }
-//        } else {
-//            displayError("Desktop is not supported on this platform.");
-//        }
-//    }
-
-
-
-
-//    private void viewExcelFile() {
-//        if (processedExcelFiles.isEmpty()) {
-//            displayError("No Excel files processed yet.");
-//            return;
-//        }
-//
-//        // Create a dialog for the user to select which output file to view
-//        ChoiceDialog<File> choiceDialog = new ChoiceDialog<>(processedExcelFiles.get(0), processedExcelFiles);
-//        choiceDialog.setTitle("Select Output File");
-//        choiceDialog.setHeaderText("Choose an output file to view:");
-//        choiceDialog.setContentText("Output Files:");
-//
-//        // Apply style to the dialog
-//        applyDialogStyle(choiceDialog);
-//
-//        // Apply the same CSS style to the dialog
-//        if (cssFilePath != null) {
-//            choiceDialog.getDialogPane().getStylesheets().add(cssFilePath);
-//        }
-//
-//        // Show the dialog and wait for the user to select a file
-//        Optional<File> selectedFile = choiceDialog.showAndWait();
-//        selectedFile.ifPresent(this::openExcelFile);
-//    }
-
-//    private void viewExcelFile() {
-//        if (processedExcelFiles.isEmpty()) {
-//            displayError("No Excel files processed yet.");
-//            return;
-//        }
-//
-//        // Create a dialog for the user to select which output file to view
-//        ChoiceDialog<File> choiceDialog = new ChoiceDialog<>(processedExcelFiles.get(0), processedExcelFiles);
-//        choiceDialog.setTitle("Select Output File");
-//        choiceDialog.setHeaderText("Choose an output file to view:");
-//        choiceDialog.setContentText("Output Files:");
-//
-//        // Show the dialog and wait for the user to select a file
-//        Optional<File> selectedFile = choiceDialog.showAndWait();
-//        selectedFile.ifPresent(file -> openExcelFile(file));
-//    }
-
-//    private void openExcelFile(File file) {
-//        // Attempt to open the Excel file using the default system application based on OS type
-//        try {
-//            String os = System.getProperty("os.name").toLowerCase();
-//            if (os.contains("win")) {
-//                Runtime.getRuntime().exec(new String[]{"cmd", "/c", "start", file.getAbsolutePath()});
-//            } else if (os.contains("mac")) {
-//                Runtime.getRuntime().exec(new String[]{"/usr/bin/open", file.getAbsolutePath()});
-//            } else {
-//                displayError("Unsupported operating system for opening files.");
-//            }
-//        } catch (IOException e) {
-//            displayError("Error opening Excel file: " + e.getMessage());
-//        }
-//    }
-
 
     private void openExcelFile(File file) {
         if (Desktop.isDesktopSupported()) {
@@ -986,54 +1148,6 @@ public class CSVProcessorApp extends Application {
 
     }
 
-//    private void saveExcelFile() {
-//        if (processedExcelFiles.isEmpty()) {
-//            displayError("No Excel file has been processed yet.");
-//            return;
-//        }
-//
-//        // Assuming you want to save the last processed file or implement a selection mechanism
-//        File fileToSave = processedExcelFiles.get(processedExcelFiles.size() - 1);
-//
-//        if (fileToSave == null) {
-//            displayError("No Excel file available to save.");
-//            return;
-//        }
-//
-//        FileChooser fileChooser = new FileChooser();
-//        fileChooser.setTitle("Save Excel File");
-//        fileChooser.setInitialFileName(fileToSave.getName()); // Suggest a name
-//
-//        // Set extension filter to .xlsx files
-//        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files", "*.xlsx"));
-//
-//        // Set the initial directory from preferences
-//        String lastOutputFolder = loadPreference(LAST_OUTPUT_FOLDER_KEY, "");
-//        if (!lastOutputFolder.isEmpty()) {
-//            fileChooser.setInitialDirectory(new File(lastOutputFolder));
-//        } else {
-//            // If no preference is set, use the default directory
-//            fileChooser.setInitialDirectory(new File(getDefaultDirectory()));
-//        }
-//
-//
-//        File savedFile = fileChooser.showSaveDialog(new Stage());
-//
-//        if (savedFile != null) {
-//            try {
-//                // Copy the content of the processed file to the saved file
-//                Files.copy(fileToSave.toPath(), savedFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-//                displayInfo("Excel file saved to: " + savedFile.getAbsolutePath());
-//                savedExcelFiles.add(fileToSave); // Mark the file as saved
-//
-//                // Save the last output folder path to preferences
-//                savePreference(LAST_OUTPUT_FOLDER_KEY, savedFile.getParent());
-//
-//            } catch (IOException e) {
-//                displayError("Error saving Excel file: " + e.getMessage());
-//            }
-//        }
-//    }
 
     private void saveExcelFile() {
         if (processedExcelFiles.isEmpty()) {
@@ -1137,70 +1251,6 @@ public class CSVProcessorApp extends Application {
     }
 
 
-
-//    private void saveExcelFile() {
-//        if (processedExcelFiles.isEmpty()) {
-//            displayError("No Excel files have been processed yet.");
-//            return;
-//        }
-//
-//        // Create a dropdown list of processed files
-//        ChoiceDialog<File> choiceDialog = new ChoiceDialog<>(processedExcelFiles.get(0), processedExcelFiles);
-//        choiceDialog.setTitle("Select Output File");
-//        choiceDialog.setHeaderText("Choose an output file to save:");
-//        choiceDialog.setContentText("Output Files:");
-//
-//        // Apply style to the dialog
-//        applyDialogStyle(choiceDialog);
-//
-//        // Show the dialog and wait for the user to select a file
-//        Optional<File> selectedFile = choiceDialog.showAndWait();
-//
-//        // If the user made a selection, proceed to save the file
-//        selectedFile.ifPresent(fileToSave -> {
-//            FileChooser fileChooser = new FileChooser();
-//            fileChooser.setTitle("Save Excel File");
-//            fileChooser.setInitialFileName(fileToSave.getName()); // Suggest a name
-//
-//            // Set extension filter to .xlsx files
-//            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files", "*.xlsx"));
-//
-//            // Set the initial directory from preferences or use default directory
-//            String lastOutputFolder = loadPreference(LAST_OUTPUT_FOLDER_KEY, "");
-//            if (!lastOutputFolder.isEmpty()) {
-//                fileChooser.setInitialDirectory(new File(lastOutputFolder));
-//            } else {
-//                fileChooser.setInitialDirectory(new File(getDefaultDirectory()));
-//            }
-//
-//            // Show save dialog
-//            File savedFile = fileChooser.showSaveDialog(new Stage());
-//
-//            if (savedFile != null) {
-//                try {
-//                    // Copy the content of the selected processed file to the saved file
-//                    Files.copy(fileToSave.toPath(), savedFile.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-//                    displayInfo("Excel file saved to: " + savedFile.getAbsolutePath());
-//                    savedExcelFiles.add(fileToSave); // Mark the file as saved
-//
-//                    // Save the last output folder path to preferences
-//                    savePreference(LAST_OUTPUT_FOLDER_KEY, savedFile.getParent());
-//
-//                } catch (IOException e) {
-//                    displayError("Error saving Excel file: " + e.getMessage());
-//                }
-//            }
-//        });
-//    }
-//
-//    private void displayError(String message) {
-//        errorTextArea.appendText("Error: " + message + "\n");
-//    }
-//
-//    private void displayInfo(String message) {
-//        errorTextArea.appendText("Info: " + message + "\n");
-//    }
-
     // Inner class to encapsulate CSV processing logic
     public static class CsvProcessor {
 
@@ -1224,18 +1274,21 @@ public class CSVProcessorApp extends Application {
 
                 Set<String> skuSet = new HashSet<>();
                 List<SuccessfulRecord> successfulRecords = new ArrayList<>(); // Changed to store additional info
-                List<CSVRecord> imageEntries = new ArrayList<>();
+                 List<CSVRecord> imageEntries = new ArrayList<>();
 
-                try (BOMInputStream bomInputStream = new BOMInputStream(new FileInputStream(inputFilePath));
+                try (BOMInputStream bomInputStream = new BOMInputStream(Files.newInputStream(Paths.get(inputFilePath)));
                      CSVParser parser = new CSVParser(new InputStreamReader(bomInputStream, StandardCharsets.UTF_8),
                              CSVFormat.DEFAULT.withHeader())) {
 
                 // Validate required headers
                     Set<String> headersInFile = new HashSet<>(parser.getHeaderMap().keySet());
                     List<String> missingHeaders = new ArrayList<>();
+                    Set<String> headersInFileNormalized = headersInFile.stream()
+                            .map(header -> header.trim().toLowerCase()) // Trim spaces & normalize case
+                            .collect(Collectors.toSet());
 
                     for (String requiredHeader : REQUIRED_HEADERS) {
-                        if (!headersInFile.contains(requiredHeader)) {
+                        if (!headersInFileNormalized.contains(requiredHeader.toLowerCase())) {
                             missingHeaders.add(requiredHeader);
                         }
                     }
@@ -1243,10 +1296,8 @@ public class CSVProcessorApp extends Application {
                     if (!missingHeaders.isEmpty()) {
                         String errorMessage = "Warning: The following required headers are missing from your CSV file: " + missingHeaders +
                                 ". Please update your CSV file headers to include: " + Arrays.toString(REQUIRED_HEADERS);
-                        // Using Platform.runLater to update UI from background thread
                         Platform.runLater(() -> errorTextArea.appendText(errorMessage + "\n"));
-                        return false;
-                        // Returning false to indicate header validation failure
+                        return false; // Returning false to indicate header validation failure
                     }
 
                     // Group records by handle and skip image entries
@@ -1522,38 +1573,6 @@ public class CSVProcessorApp extends Application {
             return true;
         }
 
-//hasError version 1 , assuming row positioning
-//        public boolean hasErrors(File excelFile) throws IOException {
-//            try (FileInputStream fileInputStream = new FileInputStream(excelFile);
-//                 Workbook workbook = new XSSFWorkbook(fileInputStream)) {
-//
-//                // Check if any error sheet has entries
-//                String[] errorSheetNames = {"Invalid - Duplicate SKUs", "Invalid Options", "Other Errors"};
-//                for (String sheetName : errorSheetNames) {
-//                    Sheet sheet = workbook.getSheet(sheetName);
-//                    if (sheet != null && sheet.getPhysicalNumberOfRows() > 2) { // Rows 0 and 1 are headers
-//                        return true; // Errors found
-//                    }
-//                }
-//
-//                // Check if the "Success" sheet has any records with meta status indicating issues
-//                Sheet successSheet = workbook.getSheet("Success");
-//                if (successSheet != null) {
-//                    for (Row row : successSheet) {
-//                        if (row.getRowNum() < 2) continue; // Skip header rows
-//                        Cell metaStatusCell = row.getCell(8); // Assuming meta status is in the 9th column (index 8)
-//                        if (metaStatusCell != null && !metaStatusCell.getStringCellValue().isEmpty()) {
-//                            return true; // Meta issues found
-//                        }
-//                    }
-//                }
-//
-//                return false; // No errors found
-//            }
-//        }
-
-
-
 
         // Helper method to find the header row dynamically
         private int findHeaderRow(Sheet sheet, String[] expectedHeaders) {
@@ -1765,6 +1784,9 @@ public class CSVProcessorApp extends Application {
                 this.metaStatus = metaStatus;
             }
         }
+
+
+
     }
 }
 
