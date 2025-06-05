@@ -1,6 +1,7 @@
 
 package com.example;
 
+import com.aspose.cells.SaveFormat;
 import javafx.animation.FadeTransition;
 import javafx.application.Application;
 import javafx.fxml.FXML;
@@ -25,6 +26,7 @@ import javafx.scene.paint.Color;  // Import for Color
 import javafx.scene.image.ImageView;
 
 import java.awt.*;
+import java.net.HttpURLConnection;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.prefs.Preferences;
@@ -142,6 +144,7 @@ public class CSVProcessorApp extends Application {
         saveTemplate1.setText("save Template");
         processTemplate1.setText("process Template");
         errorTextArea.clear();
+        processTemplate1.setText("process Template");
         processedExcelFiles.clear();
         selectedCsvFiles.clear();
         savedExcelFiles.clear();
@@ -189,6 +192,12 @@ public class CSVProcessorApp extends Application {
         Button clearSelectedFilesButton = new Button("Clear All");
         ComboBox<String> uploadFileTypeComboBox = new ComboBox<>();
 
+
+
+
+
+        Button convertNumbersToCsvButton = new Button("Convert .numbers to .csv");
+
         // Add options to the ComboBox
         uploadFileTypeComboBox.getItems().addAll(
                 "Variation Upload File",
@@ -196,7 +205,7 @@ public class CSVProcessorApp extends Application {
         );
 
         // Optionally set a default value
-        uploadFileTypeComboBox.setValue("Variation Upload File");
+        uploadFileTypeComboBox.setValue("Select Upload Template");
 
 
         processTemplate1 = new Button("process Template");
@@ -223,6 +232,8 @@ public class CSVProcessorApp extends Application {
         //eventlistener for the dropbox
 
         uploadFileTypeComboBox.setOnHidden(event -> {
+
+            processTemplate1.setText("process Template");
             String selected = uploadFileTypeComboBox.getValue();
             Stage stage = (Stage) uploadFileTypeComboBox.getScene().getWindow();
 
@@ -240,14 +251,28 @@ public class CSVProcessorApp extends Application {
 
         processTemplate1.setOnAction(e -> {
             String selected = uploadFileTypeComboBox.getValue();
-            if ("Variation Upload File".equals(selected)) {
-                try {
-                    processVariationUpload();
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
-                }
+
+            // If the button is in "view product upload" mode, show files and return
+            if ("view product upload".equalsIgnoreCase(processTemplate1.getText())) {
+                viewExcelFile(); // Call  method to view processed files
+                return;
             }
-            // else if for "Product Upload File" (to be implemented)
+
+            try {
+                if ("Variation Upload File".equals(selected)) {
+                    processVariationUpload();
+                    // You can add similar logic for variation upload if needed
+                } else if ("Product Upload File".equals(selected)) {
+                    processProductUpload();
+
+                    // If processing is successful (processedExcelFiles is not empty and file exists)
+                    if (!processedExcelFiles.isEmpty() && processedExcelFiles.get(0).exists()) {
+                        processTemplate1.setText("view product upload");
+                    }
+                }
+            } catch (IOException ex) {
+                throw new RuntimeException("Error processing file: " + selected, ex);
+            }
         });
 
 
@@ -348,10 +373,23 @@ public class CSVProcessorApp extends Application {
         saveExcelButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
         clearSelectedFilesButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.18));
 
+
+
+
+        // Create the spacer
+        Region spacer1 = new Region();
+        HBox.setHgrow(spacer1, Priority.ALWAYS);
+
+        // Wrap the button in an HBox and push it to the right
+        HBox rightAlignedButtonBox = new HBox();
+        rightAlignedButtonBox.getChildren().addAll(spacer1, convertNumbersToCsvButton);
+
+
         // Main Layout
         VBox layout = new VBox(10);
         layout.setPadding(new Insets(10));
-        layout.getChildren().addAll(buttonContainer, saveClearButtonContainer, selectedFileLabel,variationSelectedFileLabel, new Label("Messages/Warnings:"), errorTextArea, toggleInstructionsButton, instructionsLabel);
+        layout.getChildren().addAll(buttonContainer, saveClearButtonContainer, rightAlignedButtonBox, selectedFileLabel,variationSelectedFileLabel, new Label("Messages/Warnings:"), errorTextArea, toggleInstructionsButton, instructionsLabel);
+
 
 
         // Create and set the scene
@@ -373,6 +411,51 @@ public class CSVProcessorApp extends Application {
             System.out.println("Save Excel Button Clicked");
             saveExcelFile();
         });
+
+
+        saveTemplate1.setOnAction(e -> {
+            System.out.println("Save Excel Button Clicked");
+            saveExcelFile();
+        });
+
+
+        convertNumbersToCsvButton.setOnAction(e -> {
+            FileChooser fileChooser = new FileChooser();
+            fileChooser.setTitle("Select .numbers File");
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Numbers Files (*.numbers)", "*.numbers"));
+            File numbersFile = fileChooser.showOpenDialog(primaryStage);
+            if (numbersFile == null) {
+                displayError("No .numbers file selected.");
+                return;
+            }
+
+            FileChooser saveChooser = new FileChooser();
+            saveChooser.setTitle("Save Converted CSV");
+            saveChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files (*.csv)", "*.csv"));
+            File csvFile = saveChooser.showSaveDialog(primaryStage);
+            if (csvFile == null) {
+                displayError("No save location selected.");
+                return;
+            }
+
+            try {
+                convertNumbersToCsv(numbersFile, csvFile); // This uses Aspose.Cells
+                displayInfo("Conversion successful! Saved to: " + csvFile.getAbsolutePath());
+            } catch (NullPointerException npe) {
+                npe.printStackTrace();
+                displayError(
+                        "Conversion failed: This .numbers file cannot be opened by Aspose.Cells. " +
+                                "Most modern Apple Numbers files are not supported. " +
+                                "Please export your file as CSV from Apple Numbers on a Mac, or use an online converter such as https://cloudconvert.com/numbers-to-csv."
+                );
+            } catch (Exception ex) {
+                ex.printStackTrace(); // This will print the full error in your console
+                displayError("Conversion failed: " + (ex.getMessage() != null ? ex.getMessage() : ex.toString()));
+            }
+
+
+        });
+
 
 
 
@@ -411,10 +494,6 @@ public class CSVProcessorApp extends Application {
                 System.out.println("Loading recent input folder: " + recentInputFolder);
             }
         }
-
-
-
-
 
 
 
@@ -502,6 +581,202 @@ public class CSVProcessorApp extends Application {
 
     }
 
+    public void convertNumbersToCsv(File numbersFile, File csvFile) throws Exception {
+        // Do NOT catch exceptions here!
+        com.aspose.cells.Workbook workbook = new com.aspose.cells.Workbook(numbersFile.getAbsolutePath());
+        workbook.save(csvFile.getAbsolutePath(), com.aspose.cells.SaveFormat.CSV);
+    }
+
+
+
+
+    private String parseFileUrlFromJson(String json) {
+        // Very basic parsing (production code should use a JSON library)
+        int urlIndex = json.indexOf("\"Url\":\"");
+        if (urlIndex == -1) return null;
+        int start = urlIndex + 7;
+        int end = json.indexOf("\"", start);
+        if (end == -1) return null;
+        return json.substring(start, end).replace("\\/", "/");
+    }
+
+
+
+
+    private void processProductUpload() {
+        errorTextArea.clear();
+
+        if (selectedCsvFiles.isEmpty()) {
+            errorTextArea.setText("No file selected.");
+            return;
+        }
+
+        File csvFile = selectedCsvFiles.get(0);
+        List<String> errors = new ArrayList<>();
+
+        // Only these columns will be exported
+        List<String> exportHeaders = Arrays.asList("variation_name", "option1", "option2", "product_code");
+
+        try {
+            List<String> lines = Files.readAllLines(csvFile.toPath(), StandardCharsets.UTF_8);
+            String cleanedHeaderLine = lines.get(0).replaceAll(",\\s*$", "");
+            lines.set(0, cleanedHeaderLine);
+            String cleanedCsvContent = String.join("\n", lines);
+
+            try (Reader cleanedReader = new StringReader(cleanedCsvContent)) {
+                CSVParser parser = new CSVParser(cleanedReader, CSVFormat.DEFAULT
+                        .withFirstRecordAsHeader()
+                        .withIgnoreHeaderCase()
+                        .withTrim());
+
+                Map<String, Integer> headerMap = parser.getHeaderMap();
+                for (String required : exportHeaders) {
+                    if (!headerMap.containsKey(required)) {
+                        errorTextArea.setText("Missing required header: " + required);
+                        return;
+                    }
+                }
+
+                // 1. Group records by variation_name
+                List<List<CSVRecord>> allGroups = new ArrayList<>();
+                List<String> groupNames = new ArrayList<>();
+                List<CSVRecord> currentGroup = new ArrayList<>();
+                for (CSVRecord record : parser) {
+                    // Check for blank record
+                    boolean isBlankRecord = true;
+                    for (String value : exportHeaders) {
+                        if (!record.get(value).trim().isEmpty()) {
+                            isBlankRecord = false;
+                            break;
+                        }
+                    }
+                    if (isBlankRecord) continue;
+
+                    String variationName = record.get("variation_name").trim();
+                    if (!variationName.isEmpty()) {
+                        if (!currentGroup.isEmpty()) {
+                            allGroups.add(new ArrayList<>(currentGroup));
+                            currentGroup.clear();
+                        }
+                        groupNames.add(variationName);
+                    }
+                    currentGroup.add(record);
+                }
+                if (!currentGroup.isEmpty()) {
+                    allGroups.add(currentGroup);
+                }
+
+                // 2. Check for duplicate variation_name groups
+                Map<String, List<Integer>> variationNameToGroups = new HashMap<>();
+                for (int i = 0; i < groupNames.size(); i++) {
+                    String name = groupNames.get(i);
+                    variationNameToGroups.computeIfAbsent(name, k -> new ArrayList<>()).add(i);
+                }
+
+                // 3. Map product_code to groups
+                Map<String, List<Integer>> productCodeToGroups = new HashMap<>();
+                for (int i = 0; i < allGroups.size(); i++) {
+                    for (CSVRecord record : allGroups.get(i)) {
+                        String productCode = record.get("product_code").trim();
+                        if (!productCode.isEmpty()) {
+                            productCodeToGroups.computeIfAbsent(productCode, k -> new ArrayList<>()).add(i);
+                        }
+                    }
+                }
+
+                // 4. Identify invalid groups (duplicate variation_name, duplicate product_code, missing fields)
+                Set<Integer> invalidGroupIndexes = new HashSet<>();
+                // a) Duplicate variation_name
+                for (Map.Entry<String, List<Integer>> entry : variationNameToGroups.entrySet()) {
+                    if (entry.getValue().size() > 1) {
+                        invalidGroupIndexes.addAll(entry.getValue());
+                    }
+                }
+                // b) Duplicate product_code across groups
+                for (Map.Entry<String, List<Integer>> entry : productCodeToGroups.entrySet()) {
+                    if (entry.getValue().size() > 1) {
+                        invalidGroupIndexes.addAll(entry.getValue());
+                    }
+                }
+                // c) Validation for each group (option1 required for header, product_code required/unique in group)
+                for (int i = 0; i < allGroups.size(); i++) {
+                    List<CSVRecord> group = allGroups.get(i);
+                    Set<String> localProductCodes = new HashSet<>();
+                    for (int j = 0; j < group.size(); j++) {
+                        CSVRecord record = group.get(j);
+                        String productCode = record.get("product_code").trim();
+                        String option1 = record.get("option1").trim();
+                        String variationName = record.get("variation_name").trim();
+
+                        if (j == 0 && option1.isEmpty()) {
+                            invalidGroupIndexes.add(i);
+                        }
+                        if (productCode.isEmpty() || !localProductCodes.add(productCode)) {
+                            invalidGroupIndexes.add(i);
+                        }
+                    }
+                }
+
+                // 5. Separate valid/invalid groups
+                List<List<CSVRecord>> validGroups = new ArrayList<>();
+                List<List<CSVRecord>> invalidGroups = new ArrayList<>();
+                for (int i = 0; i < allGroups.size(); i++) {
+                    if (invalidGroupIndexes.contains(i)) {
+                        invalidGroups.add(allGroups.get(i));
+                    } else {
+                        validGroups.add(allGroups.get(i));
+                    }
+                }
+
+                // 6. Write valid groups
+                if (!validGroups.isEmpty()) {
+                    File outFile = new File(csvFile.getParent(), "product_upload_processed.csv");
+                    try (BufferedWriter writer = Files.newBufferedWriter(outFile.toPath(), StandardCharsets.UTF_8)) {
+                        CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(exportHeaders.toArray(new String[0])));
+                        for (List<CSVRecord> group : validGroups) {
+                            for (CSVRecord rec : group) {
+                                List<String> row = exportHeaders.stream()
+                                        .map(h -> rec.get(h))
+                                        .collect(Collectors.toList());
+                                printer.printRecord(row);
+                            }
+                        }
+                        printer.flush();
+                        processedExcelFiles.clear();
+                        processedExcelFiles.add(outFile);
+                        errors.add("Processed file Temporary saved as: " + outFile.getAbsolutePath());
+                        saveTemplate1.setText("save Product Upload File");
+                    }
+                } else {
+                    errors.add("No valid product groups to write.");
+                }
+
+                // 7. Write invalid groups
+                if (!invalidGroups.isEmpty()) {
+                    File invalidFile = new File(csvFile.getParent(), "invalid.csv");
+                    try (BufferedWriter writer = Files.newBufferedWriter(invalidFile.toPath(), StandardCharsets.UTF_8)) {
+                        CSVPrinter printer = new CSVPrinter(writer, CSVFormat.DEFAULT.withHeader(exportHeaders.toArray(new String[0])));
+                        for (List<CSVRecord> group : invalidGroups) {
+                            for (CSVRecord rec : group) {
+                                List<String> row = exportHeaders.stream()
+                                        .map(h -> rec.get(h))
+                                        .collect(Collectors.toList());
+                                printer.printRecord(row);
+                            }
+                        }
+                        printer.flush();
+                        processedExcelFiles.add(invalidFile);
+                        errors.add("Invalid records written to: " + invalidFile.getAbsolutePath());
+                    }
+                }
+
+                errorTextArea.setText(String.join("\n", errors));
+            }
+        } catch (Exception ex) {
+            errorTextArea.setText("Error processing file: " + ex.getMessage());
+            ex.printStackTrace();
+        }
+    }
 
 
 
@@ -614,7 +889,9 @@ public class CSVProcessorApp extends Application {
                     }
 
                     printer.flush();
-                    errors.add("Processed file saved as: " + outFile.getAbsolutePath());
+                    processedExcelFiles.clear();  // keep only the processedVariantupload files
+                    processedExcelFiles.add(outFile);
+                    errors.add("Processed file Temporary saved as: " + outFile.getAbsolutePath());
                     saveTemplate1.setText("save Variation Upload File");
                 }
             } else {
