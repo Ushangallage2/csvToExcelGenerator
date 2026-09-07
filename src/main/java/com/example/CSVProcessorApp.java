@@ -356,9 +356,11 @@ public class CSVProcessorApp extends Application {
         pathC.getStyleClass().add("path-card");
 
         Label guidanceBody = new Label(
-                "A  Direct select: choose your CSV, press Process, then View / Save / Corrected XLSX / Generate SQL.\n" +
-                "B  Template: pick Variation or Product, process the CSV, then Save Template.\n" +
-                "C  Numbers: convert .numbers to .csv, then go back to A or B."
+                "• Input your CSV file to check validations, press Process, then you can Save, View,\n" +
+                "  generate a Corrected XLSX, or Generate SQL.\n" +
+                "• To create a Variation or Product upload file from the CSV: select the template,\n" +
+                "  Process Template, then Save Template.\n" +
+                "• Numbers files: convert .numbers → .csv first, then use the CSV above."
         );
         guidanceBody.setWrapText(true);
         guidanceBody.getStyleClass().add("guidance-body");
@@ -367,7 +369,7 @@ public class CSVProcessorApp extends Application {
 
         Label hintArrow = new Label("▼");
         hintArrow.getStyleClass().add("hint-arrow");
-        Label hintText = new Label("what to select in each");
+        Label hintText = new Label("What to select");
         hintText.getStyleClass().add("hint-text");
         HBox hintContent = new HBox(8, hintArrow, hintText);
         hintContent.setAlignment(Pos.CENTER_LEFT);
@@ -1451,6 +1453,7 @@ public class CSVProcessorApp extends Application {
     }
 
     private Optional<File> chooseProcessedFile(String headerText) {
+        processedExcelFiles.removeIf(f -> f == null || !f.exists());
         if (processedExcelFiles.isEmpty()) {
             displayError("No processed Excel files available. Process a CSV first.");
             return Optional.empty();
