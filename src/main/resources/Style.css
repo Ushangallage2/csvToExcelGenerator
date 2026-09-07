@@ -144,3 +144,48 @@
     -fx-background-color: #0d9488;
     -fx-text-fill: #042f2e;
 }
+
+
+.guidance-body {
+    -fx-text-fill: #9fd3d0;
+    -fx-font-size: 12px;
+    -fx-line-spacing: 3px;
+    -fx-padding: 2 2 10 22;
+}
+
+.path-card {
+    -fx-background-color: rgba(8, 18, 24, 0.45);
+    -fx-background-radius: 12;
+    -fx-border-color: rgba(94, 234, 212, 0.16);
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 12 14;
+}
+
+.path-title {
+    -fx-text-fill: #ecfeff;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.select-hint {
+    -fx-padding: 2 0 4 0;
+    -fx-cursor: hand;
+}
+
+.hint-arrow {
+    -fx-text-fill: #5eead4;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+
+.hint-text {
+    -fx-text-fill: #e7fffb;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-letter-spacing: 0.3px;
+}
+
+.scroll-pane, .scroll-pane .viewport, .scroll-pane .corner {
+    -fx-background-color: transparent;
+}

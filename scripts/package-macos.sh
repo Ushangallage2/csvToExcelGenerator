@@ -9,7 +9,7 @@ export PATH="$JAVA_HOME/bin:$PATH"
 mvn -DskipTests package
 
 APP_NAME="CSV to Excel Generator"
-JAR="target/csv-to-excel-generator-1.1.0.jar"
+JAR="target/csv-to-excel-generator-1.3.0.jar"
 STAGE="$ROOT/target/jpackage-input"
 DEST="$ROOT/dist/macos"
 
@@ -25,7 +25,7 @@ jpackage \
   --main-class com.example.Launcher \
   --dest "$DEST" \
   --java-options "-Dfile.encoding=UTF-8" \
-  --app-version 1.1.0
+  --app-version 1.3.0
 
 APP_PATH="$DEST/$APP_NAME.app"
 xattr -cr "$APP_PATH" 2>/dev/null || true

@@ -6,7 +6,7 @@ cd "$ROOT"
 mvn -DskipTests package
 
 APP_NAME="csv-to-excel-generator"
-JAR="target/csv-to-excel-generator-1.1.0.jar"
+JAR="target/csv-to-excel-generator-1.3.0.jar"
 STAGE="$ROOT/target/jpackage-input"
 DEST="$ROOT/dist/linux"
 
@@ -22,7 +22,7 @@ jpackage \
   --main-class com.example.Launcher \
   --dest "$DEST" \
   --java-options "-Dfile.encoding=UTF-8" \
-  --app-version 1.1.0
+  --app-version 1.3.0
 
 if command -v dpkg-deb >/dev/null 2>&1; then
   jpackage \
@@ -33,7 +33,7 @@ if command -v dpkg-deb >/dev/null 2>&1; then
     --main-class com.example.Launcher \
     --dest "$DEST" \
     --java-options "-Dfile.encoding=UTF-8" \
-    --app-version 1.1.0 || true
+    --app-version 1.3.0 || true
 fi
 
 echo "Linux package(s) under: $DEST"

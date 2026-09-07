@@ -2,8 +2,18 @@
 package com.example;
 
 import com.aspose.cells.SaveFormat;
+import javafx.animation.Animation;
 import javafx.animation.FadeTransition;
+import javafx.animation.KeyFrame;
+import javafx.animation.KeyValue;
+import javafx.animation.Timeline;
 import javafx.application.Application;
+import javafx.scene.effect.BlendMode;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.LinearGradient;
+import javafx.scene.paint.Stop;
+import javafx.scene.shape.Rectangle;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -19,6 +29,7 @@ import javafx.scene.layout.*;
 import javafx.scene.text.FontWeight;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.stage.Window;
 import javafx.scene.image.Image;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -72,6 +83,7 @@ public class CSVProcessorApp extends Application {
     private String cssFilePath;
     private ProgressBar progressBar;  // Add ProgressBar
     private Label progressLabel; // Add Label for progress text
+    private Stage primaryStage;
 
 
     private Button saveTemplate1;
@@ -156,6 +168,7 @@ public class CSVProcessorApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        this.primaryStage = primaryStage;
         primaryStage.setTitle("CSV → Excel Generator");
 
         String recentInputFolder = loadPreference(RECENT_INPUT_FOLDER_KEY, ""); // Default to empty
@@ -204,8 +217,8 @@ public class CSVProcessorApp extends Application {
                 "Product Upload File"
         );
 
-        // Optionally set a default value
-        uploadFileTypeComboBox.setValue("Select Upload Template");
+        uploadFileTypeComboBox.setPromptText("Choose Variation or Product…");
+        uploadFileTypeComboBox.setPrefWidth(240);
 
 
         processTemplate1 = new Button("process Template");
@@ -219,10 +232,17 @@ public class CSVProcessorApp extends Application {
             clearSelectedFiles();
         });
         Button correctedOutputButton = new Button("Corrected Output");
-        correctedOutputButton.setPrefWidth(250);
+        correctedOutputButton.setPrefWidth(180);
         correctedOutputButton.setOnAction(e -> {
             System.out.println("Corrected Output Button Clicked");
             chooseProcessedFileAndGenerateCorrectedOutput();
+        });
+
+        Button generateSqlButton = new Button("Generate SQL");
+        generateSqlButton.setPrefWidth(160);
+        generateSqlButton.setOnAction(e -> {
+            System.out.println("Generate SQL Button Clicked");
+            chooseProcessedFileAndGenerateSql();
         });
 
 
@@ -261,17 +281,16 @@ public class CSVProcessorApp extends Application {
             try {
                 if ("Variation Upload File".equals(selected)) {
                     processVariationUpload();
-                    // You can add similar logic for variation upload if needed
                 } else if ("Product Upload File".equals(selected)) {
                     processProductUpload();
-
-                    // If processing is successful (processedExcelFiles is not empty and file exists)
                     if (!processedExcelFiles.isEmpty() && processedExcelFiles.get(0).exists()) {
                         processTemplate1.setText("view product upload");
                     }
+                } else {
+                    displayError("Choose a Variation or Product template first.");
                 }
             } catch (IOException ex) {
-                throw new RuntimeException("Error processing file: " + selected, ex);
+                displayError("Error processing template: " + ex.getMessage());
             }
         });
 
@@ -283,6 +302,7 @@ public class CSVProcessorApp extends Application {
         viewExcelButton.getStyleClass().add("ghost-button");
         saveExcelButton.getStyleClass().add("ghost-button");
         correctedOutputButton.getStyleClass().add("ghost-button");
+        generateSqlButton.getStyleClass().add("ghost-button");
         clearSelectedFilesButton.getStyleClass().add("danger-button");
         convertNumbersToCsvButton.getStyleClass().add("ghost-button");
 
@@ -300,37 +320,76 @@ public class CSVProcessorApp extends Application {
         Label step3Title = new Label("3 · Review & Save");
         step3Title.getStyleClass().add("step-title");
 
-        HBox buttonContainer = new HBox(10);
-        buttonContainer.setAlignment(Pos.CENTER_LEFT);
-        buttonContainer.setPadding(new Insets(8, 0, 8, 0));
-        buttonContainer.getChildren().addAll(selectCsvButton);
-
         HBox processContainer = new HBox(10);
         processContainer.setAlignment(Pos.CENTER_LEFT);
         processContainer.setPadding(new Insets(8, 0, 8, 0));
         processContainer.getChildren().addAll(processButton);
 
-        HBox reviewContainer = new HBox(10);
+        FlowPane reviewContainer = new FlowPane(10, 10);
         reviewContainer.setAlignment(Pos.CENTER_LEFT);
         reviewContainer.setPadding(new Insets(8, 0, 8, 0));
-        reviewContainer.getChildren().addAll(viewExcelButton, saveExcelButton, correctedOutputButton);
+        reviewContainer.getChildren().addAll(viewExcelButton, saveExcelButton, correctedOutputButton, generateSqlButton);
 
-        HBox saveClearButtonContainer = new HBox(12);
-        saveClearButtonContainer.setAlignment(Pos.CENTER_LEFT);
-        saveClearButtonContainer.setPadding(new Insets(8, 0, 8, 0));
-        Region spacer = new Region();
-        HBox.setHgrow(spacer, Priority.ALWAYS);
-        saveClearButtonContainer.getChildren().addAll(
-                uploadFileTypeComboBox,
-                processTemplate1,
-                saveTemplate1,
-                spacer,
-                clearSelectedFilesButton
+        Label pathATitle = new Label("A · Validate a CSV  (direct select)");
+        pathATitle.getStyleClass().add("path-title");
+        Label pathAHint = new Label("Shopify product export → check errors → Excel / SQL");
+        pathAHint.getStyleClass().add("status-label");
+        HBox pathAActions = new HBox(10, selectCsvButton);
+        VBox pathA = new VBox(6, pathATitle, pathAHint, pathAActions);
+        pathA.getStyleClass().add("path-card");
+
+        Label pathBTitle = new Label("B · Build an upload file  (template)");
+        pathBTitle.getStyleClass().add("path-title");
+        Label pathBHint = new Label("Same CSV, but Variation or Product upload format");
+        pathBHint.getStyleClass().add("status-label");
+        FlowPane pathBActions = new FlowPane(10, 8);
+        pathBActions.getChildren().addAll(uploadFileTypeComboBox, processTemplate1, saveTemplate1);
+        VBox pathB = new VBox(6, pathBTitle, pathBHint, pathBActions);
+        pathB.getStyleClass().add("path-card");
+
+        Label pathCTitle = new Label("C · Apple Numbers  (.numbers → .csv)");
+        pathCTitle.getStyleClass().add("path-title");
+        Label pathCHint = new Label("Convert first, then use the CSV in A or B");
+        pathCHint.getStyleClass().add("status-label");
+        HBox pathCActions = new HBox(10, convertNumbersToCsvButton);
+        VBox pathC = new VBox(6, pathCTitle, pathCHint, pathCActions);
+        pathC.getStyleClass().add("path-card");
+
+        Label guidanceBody = new Label(
+                "A  Direct select: choose your CSV, press Process, then View / Save / Corrected XLSX / Generate SQL.\n" +
+                "B  Template: pick Variation or Product, process the CSV, then Save Template.\n" +
+                "C  Numbers: convert .numbers to .csv, then go back to A or B."
         );
+        guidanceBody.setWrapText(true);
+        guidanceBody.getStyleClass().add("guidance-body");
+        guidanceBody.setManaged(false);
+        guidanceBody.setVisible(false);
 
-        VBox step1Panel = new VBox(8, step1Title, buttonContainer, saveClearButtonContainer);
+        Label hintArrow = new Label("▼");
+        hintArrow.getStyleClass().add("hint-arrow");
+        Label hintText = new Label("what to select in each");
+        hintText.getStyleClass().add("hint-text");
+        HBox hintContent = new HBox(8, hintArrow, hintText);
+        hintContent.setAlignment(Pos.CENTER_LEFT);
+        StackPane hintStack = wrapWithShimmer(hintContent);
+        hintStack.getStyleClass().add("select-hint");
+        hintStack.setCursor(javafx.scene.Cursor.HAND);
+        hintStack.setOnMouseClicked(e -> {
+            boolean show = !guidanceBody.isVisible();
+            guidanceBody.setVisible(show);
+            guidanceBody.setManaged(show);
+            hintArrow.setText(show ? "▲" : "▼");
+        });
+
+        HBox step1Header = new HBox();
+        step1Header.setAlignment(Pos.CENTER_LEFT);
+        Region headerSpacer = new Region();
+        HBox.setHgrow(headerSpacer, Priority.ALWAYS);
+        step1Header.getChildren().addAll(step1Title, headerSpacer, clearSelectedFilesButton);
+
+        VBox step1Panel = new VBox(10, step1Header, hintStack, guidanceBody, pathA, pathB, pathC);
         step1Panel.getStyleClass().add("panel");
-        Label step2Hint = new Label("Validate selected Shopify CSVs. Progress appears below.");
+        Label step2Hint = new Label("For path A: validate the CSV selected above. Progress appears below.");
         step2Hint.getStyleClass().add("status-label");
         VBox step2Panel = new VBox(8, step2Title, step2Hint, processContainer);
         step2Panel.getStyleClass().add("panel");
@@ -401,23 +460,14 @@ public class CSVProcessorApp extends Application {
         });
 
 
-        // Bind buttons to stage width for responsiveness
-        selectCsvButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
-        processButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
-        viewExcelButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
-        saveExcelButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
-        clearSelectedFilesButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.18));
+        selectCsvButton.setPrefWidth(180);
+        processButton.setPrefWidth(180);
+        viewExcelButton.setPrefWidth(150);
+        saveExcelButton.setPrefWidth(150);
+        correctedOutputButton.setPrefWidth(170);
+        generateSqlButton.setPrefWidth(150);
 
 
-
-
-        // Create the spacer
-        Region spacer1 = new Region();
-        HBox.setHgrow(spacer1, Priority.ALWAYS);
-
-        // Wrap the button in an HBox and push it to the right
-        HBox rightAlignedButtonBox = new HBox();
-        rightAlignedButtonBox.getChildren().addAll(spacer1, convertNumbersToCsvButton);
 
 
         Label messagesTitle = new Label("Activity log");
@@ -431,7 +481,6 @@ public class CSVProcessorApp extends Application {
                 step1Panel,
                 step2Panel,
                 step3Panel,
-                rightAlignedButtonBox,
                 selectedFileLabel,
                 variationSelectedFileLabel,
                 progressLabel,
@@ -442,7 +491,12 @@ public class CSVProcessorApp extends Application {
                 instructionsLabel
         );
 
-        Scene scene = new Scene(layout, 980, 720);
+        javafx.scene.control.ScrollPane scroller = new javafx.scene.control.ScrollPane(layout);
+        scroller.setFitToWidth(true);
+        scroller.setHbarPolicy(javafx.scene.control.ScrollPane.ScrollBarPolicy.NEVER);
+        scroller.getStyleClass().add("root-layout");
+
+        Scene scene = new Scene(scroller, 1020, 820);
 
         selectCsvButton.setOnAction(e -> {
             System.out.println("Select CSV Button Clicked");
@@ -472,7 +526,14 @@ public class CSVProcessorApp extends Application {
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Select .numbers File");
             fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Numbers Files (*.numbers)", "*.numbers"));
-            File numbersFile = fileChooser.showOpenDialog(primaryStage);
+            String recentInputFolderForNumbers = loadPreference(RECENT_INPUT_FOLDER_KEY, "");
+            if (!recentInputFolderForNumbers.isEmpty()) {
+                File recentDir = new File(recentInputFolderForNumbers);
+                if (recentDir.isDirectory()) {
+                    fileChooser.setInitialDirectory(recentDir);
+                }
+            }
+            File numbersFile = fileChooser.showOpenDialog(ownerWindow());
             if (numbersFile == null) {
                 displayError("No .numbers file selected.");
                 return;
@@ -481,28 +542,25 @@ public class CSVProcessorApp extends Application {
             FileChooser saveChooser = new FileChooser();
             saveChooser.setTitle("Save Converted CSV");
             saveChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("CSV Files (*.csv)", "*.csv"));
-            File csvFile = saveChooser.showSaveDialog(primaryStage);
+            String base = numbersFile.getName().replaceFirst("\\.numbers$", "");
+            saveChooser.setInitialFileName(base + ".csv");
+            if (numbersFile.getParentFile() != null) {
+                saveChooser.setInitialDirectory(numbersFile.getParentFile());
+            }
+            File csvFile = saveChooser.showSaveDialog(ownerWindow());
             if (csvFile == null) {
                 displayError("No save location selected.");
                 return;
             }
 
             try {
-                convertNumbersToCsv(numbersFile, csvFile); // This uses Aspose.Cells
+                convertNumbersToCsv(numbersFile, csvFile);
                 displayInfo("Conversion successful! Saved to: " + csvFile.getAbsolutePath());
-            } catch (NullPointerException npe) {
-                npe.printStackTrace();
-                displayError(
-                        "Conversion failed: This .numbers file cannot be opened by Aspose.Cells. " +
-                                "Most modern Apple Numbers files are not supported. " +
-                                "Please export your file as CSV from Apple Numbers on a Mac, or use an online converter such as https://cloudconvert.com/numbers-to-csv."
-                );
+                savePreference(RECENT_INPUT_FOLDER_KEY, csvFile.getParent());
             } catch (Exception ex) {
-                ex.printStackTrace(); // This will print the full error in your console
+                ex.printStackTrace();
                 displayError("Conversion failed: " + (ex.getMessage() != null ? ex.getMessage() : ex.toString()));
             }
-
-
         });
 
 
@@ -631,9 +689,128 @@ public class CSVProcessorApp extends Application {
     }
 
     public void convertNumbersToCsv(File numbersFile, File csvFile) throws Exception {
-        // Do NOT catch exceptions here!
-        com.aspose.cells.Workbook workbook = new com.aspose.cells.Workbook(numbersFile.getAbsolutePath());
-        workbook.save(csvFile.getAbsolutePath(), com.aspose.cells.SaveFormat.CSV);
+        Exception asposeError = null;
+        try {
+            com.aspose.cells.Workbook workbook = new com.aspose.cells.Workbook(numbersFile.getAbsolutePath());
+            workbook.save(csvFile.getAbsolutePath(), com.aspose.cells.SaveFormat.CSV);
+            if (csvFile.exists() && csvFile.length() > 0) {
+                return;
+            }
+        } catch (Exception e) {
+            asposeError = e;
+        }
+
+        if (System.getProperty("os.name", "").toLowerCase().contains("mac")) {
+            convertNumbersViaNumbersApp(numbersFile, csvFile);
+            return;
+        }
+
+        if (asposeError != null) {
+            throw new Exception(
+                    "Could not convert this .numbers file. On a Mac, install Apple Numbers and try again. " +
+                            "Otherwise export CSV from Numbers, or use https://cloudconvert.com/numbers-to-csv. " +
+                            "Detail: " + asposeError.getMessage(),
+                    asposeError
+            );
+        }
+        throw new Exception("Conversion produced an empty file.");
+    }
+
+    private void convertNumbersViaNumbersApp(File numbersFile, File csvFile) throws Exception {
+        File numbersApp = new File("/Applications/Numbers.app");
+        if (!numbersApp.exists()) {
+            throw new Exception("Apple Numbers is not installed at /Applications/Numbers.app, so this .numbers file cannot be converted automatically.");
+        }
+
+        String inPath = numbersFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+        String outPath = csvFile.getAbsolutePath().replace("\\", "\\\\").replace("\"", "\\\"");
+        String script =
+                "tell application \"Numbers\"\n" +
+                "  open POSIX file \"" + inPath + "\"\n" +
+                "  delay 1.5\n" +
+                "  export front document to POSIX file \"" + outPath + "\" as CSV\n" +
+                "  close front document saving no\n" +
+                "end tell\n";
+
+        Process process = new ProcessBuilder("osascript", "-").redirectErrorStream(true).start();
+        try (OutputStreamWriter writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
+            writer.write(script);
+        }
+        int code = process.waitFor();
+        String output;
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append('\n');
+            }
+            output = sb.toString().trim();
+        }
+
+        File produced = csvFile;
+        if (!produced.exists() || produced.length() == 0) {
+            File asFolder = csvFile;
+            if (asFolder.isDirectory()) {
+                File[] csvs = asFolder.listFiles((dir, name) -> name.toLowerCase().endsWith(".csv"));
+                if (csvs != null && csvs.length > 0) {
+                    Files.copy(csvs[0].toPath(), csvFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    produced = csvFile;
+                }
+            }
+        }
+
+        if (code != 0 || !csvFile.exists() || csvFile.length() == 0) {
+            throw new Exception("Numbers export failed" + (output.isEmpty() ? "." : ": " + output));
+        }
+    }
+
+    private StackPane wrapWithShimmer(Node content) {
+        content.setMouseTransparent(false);
+        StackPane stack = new StackPane(content);
+        stack.setAlignment(Pos.CENTER_LEFT);
+        stack.setMaxWidth(Region.USE_PREF_SIZE);
+
+        Rectangle shimmer = new Rectangle(90, 18);
+        shimmer.setMouseTransparent(true);
+        shimmer.setBlendMode(BlendMode.ADD);
+        shimmer.setFill(new LinearGradient(
+                0, 0, 1, 0, true, CycleMethod.NO_CYCLE,
+                new Stop(0, Color.TRANSPARENT),
+                new Stop(0.35, Color.web("#5eead4", 0.05)),
+                new Stop(0.5, Color.web("#99f6e4", 0.85)),
+                new Stop(0.65, Color.web("#5eead4", 0.05)),
+                new Stop(1, Color.TRANSPARENT)
+        ));
+        stack.getChildren().add(shimmer);
+
+        Rectangle clip = new Rectangle();
+        clip.widthProperty().bind(stack.widthProperty());
+        clip.heightProperty().bind(stack.heightProperty());
+        clip.setArcWidth(8);
+        clip.setArcHeight(8);
+        stack.setClip(clip);
+
+        DropShadow glow = new DropShadow();
+        glow.setColor(Color.web("#5eead4", 0.55));
+        glow.setRadius(14);
+        content.setEffect(glow);
+
+        shimmer.heightProperty().bind(stack.heightProperty());
+        Timeline sweep = new Timeline();
+        sweep.setCycleCount(Animation.INDEFINITE);
+        sweep.setAutoReverse(true);
+        Runnable rebuild = () -> {
+            double width = Math.max(stack.getWidth(), 180);
+            sweep.stop();
+            sweep.getKeyFrames().setAll(
+                    new KeyFrame(Duration.ZERO, new KeyValue(shimmer.translateXProperty(), -90)),
+                    new KeyFrame(Duration.seconds(1.6), new KeyValue(shimmer.translateXProperty(), width))
+            );
+            sweep.playFromStart();
+        };
+        stack.widthProperty().addListener((obs, oldW, newW) -> rebuild.run());
+        Platform.runLater(rebuild);
+        return stack;
     }
 
 
@@ -1104,6 +1281,30 @@ public class CSVProcessorApp extends Application {
 
 
 
+
+    private Window ownerWindow() {
+        return primaryStage != null ? primaryStage : null;
+    }
+
+    private void styleOwnedDialog(Dialog<?> dialog) {
+        applyDialogStyle(dialog);
+        if (primaryStage != null) {
+            dialog.initOwner(primaryStage);
+        }
+    }
+
+    private File resolveOutputFile(File csvFile, String baseName, int attemptCount) {
+        File dir = csvFile.getParentFile();
+        if (dir == null || !dir.canWrite()) {
+            dir = new File(System.getProperty("user.home"), "Documents/CSVExcelGenerator");
+            if (!dir.exists() && !dir.mkdirs()) {
+                dir = new File(System.getProperty("java.io.tmpdir"), "CSVExcelGenerator");
+                dir.mkdirs();
+            }
+        }
+        return new File(dir, baseName + "_attempt_" + attemptCount + ".xlsx");
+    }
+
     private void selectCsvFile() {
         FileChooser fileChooser = new FileChooser();
         fileChooser.setTitle("Select CSV Files");
@@ -1112,21 +1313,25 @@ public class CSVProcessorApp extends Application {
         // Set the initial directory from preferences
         String recentInputFolder = loadPreference(RECENT_INPUT_FOLDER_KEY, "");
         if (!recentInputFolder.isEmpty()) {
-            fileChooser.setInitialDirectory(new File(recentInputFolder));
+            File recentDir = new File(recentInputFolder);
+            if (recentDir.isDirectory()) {
+                fileChooser.setInitialDirectory(recentDir);
+            }
         }
 
-        List<File> selectedFiles = fileChooser.showOpenMultipleDialog(new Stage());
+        List<File> selectedFiles = fileChooser.showOpenMultipleDialog(ownerWindow());
 
         if (selectedFiles != null && !selectedFiles.isEmpty()) {
             selectedCsvFiles.clear(); // Clear previous selections
             selectedCsvFiles.addAll(selectedFiles);
-            selectedFileLabel.setText(selectedFiles.size() + " files selected.");
+            String names = selectedFiles.stream().map(File::getName).collect(Collectors.joining(", "));
+            selectedFileLabel.setText(selectedFiles.size() + " CSV selected: " + names);
 
             // Save the recent input folder path
             savePreference(RECENT_INPUT_FOLDER_KEY, selectedFiles.get(0).getParent());
         } else {
             selectedCsvFiles.clear();
-            selectedFileLabel.setText("No files selected.");
+            selectedFileLabel.setText("No CSV file selected");
         }
     }
 
@@ -1171,7 +1376,8 @@ public class CSVProcessorApp extends Application {
                     String baseName = csvFile.getName().replaceFirst("[.][^.]+$", ""); // Filename without extension
 
                     int attemptCount = getAttemptCount(baseName);
-                    String outputFilePath = baseName + "_attempt_" + attemptCount + ".xlsx"; // Unique name
+                    File outputFile = resolveOutputFile(csvFile, baseName, attemptCount);
+                    String outputFilePath = outputFile.getAbsolutePath();
 
                     final int fileIndex = i + 1;
                     updateMessage("Processing " + csvFile.getName() + " (" + fileIndex + "/" + totalFiles + ")");
@@ -1179,8 +1385,8 @@ public class CSVProcessorApp extends Application {
                     try {
                         boolean success = csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea);
                         if (success) {
-                            File outputFile = new File(outputFilePath);
-                            processedExcelFiles.add(outputFile);
+                            processedExcelFiles.add(outputFile.getAbsoluteFile());
+                            Platform.runLater(() -> displayInfo("Output ready: " + outputFile.getAbsolutePath()));
 
                             boolean hasErrors = csvProcessor.hasErrors(outputFile);
                             if (hasErrors) {
@@ -1235,20 +1441,27 @@ public class CSVProcessorApp extends Application {
 
 
     private void chooseProcessedFileAndGenerateCorrectedOutput() {
+        chooseProcessedFile("Select the processed Excel file to generate corrected output from:")
+                .ifPresent(this::generateCorrectedOutput);
+    }
+
+    private void chooseProcessedFileAndGenerateSql() {
+        chooseProcessedFile("Select the processed Excel file to generate SQL from:")
+                .ifPresent(this::generateSqlQuery);
+    }
+
+    private Optional<File> chooseProcessedFile(String headerText) {
         if (processedExcelFiles.isEmpty()) {
-            displayError("No processed Excel files available.");
-            return;
+            displayError("No processed Excel files available. Process a CSV first.");
+            return Optional.empty();
         }
 
         ChoiceDialog<File> dialog = new ChoiceDialog<>(processedExcelFiles.get(0), processedExcelFiles);
         dialog.setTitle("Choose Processed File");
-        dialog.setHeaderText("Select the processed Excel file to generate corrected output from:");
+        dialog.setHeaderText(headerText);
         dialog.setContentText("Choose a file:");
-
-        applyDialogStyle(dialog);
-
-        Optional<File> result = dialog.showAndWait();
-        result.ifPresent(this::generateCorrectedOutput);
+        styleOwnedDialog(dialog);
+        return dialog.showAndWait();
     }
 
 
@@ -1378,40 +1591,22 @@ public class CSVProcessorApp extends Application {
                 }
             }
 
-            String query = "SELECT \n    p.productcode\nFROM \n    (VALUES " + String.join(", ", variantSKUs) + ") AS p(productcode)\nLEFT JOIN \n    productitem pi ON p.productcode = pi.productcode\nWHERE \n    pi.productcode IS NULL;";
-
             FileChooser fileChooser = new FileChooser();
             fileChooser.setTitle("Save Corrected Output");
             fileChooser.setInitialFileName("CorrectedOutput.xlsx");
-            File outputFile = fileChooser.showSaveDialog(null);
-
-
-            FileChooser sqlFileChooser = new FileChooser();
-            sqlFileChooser.setTitle("Save SQL Query");
-            sqlFileChooser.setInitialFileName("query.sql");
-            File sqlFile = sqlFileChooser.showSaveDialog(null);
-
-
+            fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Excel Files", "*.xlsx"));
+            File outputFile = fileChooser.showSaveDialog(ownerWindow());
 
             if (outputFile != null) {
                 try (FileOutputStream outputStream = new FileOutputStream(outputFile)) {
                     newWorkbook.write(outputStream);
-                    displayInfo("Corrected output saved successfully.");
+                    displayInfo("Corrected output saved successfully: " + outputFile.getAbsolutePath());
                 }
-                processedExcelFiles.add(outputFile);
+                processedExcelFiles.add(outputFile.getAbsoluteFile());
             } else {
-                displayInfo("File save canceled.");
+                displayInfo("Corrected output save canceled.");
             }
-
-            if (sqlFile != null) {
-                try (FileWriter writer = new FileWriter(sqlFile)) {
-                    writer.write(query);
-                    displayInfo("SQL query saved successfully.");
-                } catch (IOException e) {
-                    displayError("Error saving SQL file: " + e.getMessage());
-                }
-            }
-
+            newWorkbook.close();
 
         } catch (IOException e) {
             displayError("Error processing file: " + e.getMessage());
@@ -1420,7 +1615,95 @@ public class CSVProcessorApp extends Application {
         }
     }
 
-    
+    private void generateSqlQuery(File selectedExcelFile) {
+        if (selectedExcelFile == null) {
+            displayError("No file selected.");
+            return;
+        }
+
+        try (FileInputStream fis = new FileInputStream(selectedExcelFile);
+             Workbook workbook = new XSSFWorkbook(fis)) {
+
+            Sheet successSheet = workbook.getSheet("Success");
+            if (successSheet == null) {
+                displayError("Sheet 'Success' not found in the selected Excel file.");
+                return;
+            }
+
+            Map<String, Integer> sourceColumnIndexMap = new HashMap<>();
+            Row headerRowSource = successSheet.getRow(1);
+            if (headerRowSource != null) {
+                for (int i = 0; i < headerRowSource.getLastCellNum(); i++) {
+                    Cell cell = headerRowSource.getCell(i);
+                    if (cell != null) {
+                        sourceColumnIndexMap.put(cell.getStringCellValue().trim(), i);
+                    }
+                }
+            }
+
+            if (!sourceColumnIndexMap.containsKey("Variant SKU") || !sourceColumnIndexMap.containsKey("Meta Status")) {
+                displayError("Success sheet is missing Variant SKU or Meta Status columns.");
+                return;
+            }
+
+            List<String> variantSKUs = new ArrayList<>();
+            int skuCol = sourceColumnIndexMap.get("Variant SKU");
+            int metaCol = sourceColumnIndexMap.get("Meta Status");
+
+            for (int i = 2; i <= successSheet.getLastRowNum(); i++) {
+                Row dataRow = successSheet.getRow(i);
+                if (dataRow == null) {
+                    continue;
+                }
+                Cell metaStatusCell = dataRow.getCell(metaCol);
+                String metaStatus = "";
+                if (metaStatusCell != null && metaStatusCell.getCellType() == CellType.STRING) {
+                    metaStatus = metaStatusCell.getStringCellValue();
+                }
+                if (metaStatus.equals("Meta product is missing") || metaStatus.equals("Meta product has errors")) {
+                    continue;
+                }
+                Cell skuCell = dataRow.getCell(skuCol);
+                if (skuCell == null) {
+                    continue;
+                }
+                String sku = "";
+                if (skuCell.getCellType() == CellType.STRING) {
+                    sku = skuCell.getStringCellValue();
+                } else if (skuCell.getCellType() == CellType.NUMERIC) {
+                    sku = String.valueOf((long) skuCell.getNumericCellValue());
+                }
+                if (sku != null && !sku.trim().isEmpty()) {
+                    variantSKUs.add("('" + sku.trim().replace("'", "''") + "')");
+                }
+            }
+
+            if (variantSKUs.isEmpty()) {
+                displayError("No valid Variant SKUs found to build SQL.");
+                return;
+            }
+
+            String query = "SELECT \n    p.productcode\nFROM \n    (VALUES " + String.join(", ", variantSKUs)
+                    + ") AS p(productcode)\nLEFT JOIN \n    productitem pi ON p.productcode = pi.productcode\nWHERE \n    pi.productcode IS NULL;";
+
+            FileChooser sqlFileChooser = new FileChooser();
+            sqlFileChooser.setTitle("Save SQL Query");
+            sqlFileChooser.setInitialFileName("query.sql");
+            sqlFileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("SQL Files", "*.sql"));
+            File sqlFile = sqlFileChooser.showSaveDialog(ownerWindow());
+
+            if (sqlFile != null) {
+                try (FileWriter writer = new FileWriter(sqlFile)) {
+                    writer.write(query);
+                    displayInfo("SQL query saved successfully: " + sqlFile.getAbsolutePath());
+                }
+            } else {
+                displayInfo("SQL save canceled.");
+            }
+        } catch (IOException e) {
+            displayError("Error generating SQL: " + e.getMessage());
+        }
+    }
 
 
     // *NEW*: Method to determine the attempt count.
@@ -1446,43 +1729,53 @@ public class CSVProcessorApp extends Application {
 
 
     private void viewExcelFile() {
-        if (processedExcelFiles.isEmpty()) {
-            displayError("No Excel files processed yet.");
-            return;
-        }
-
-        // Create a dialog for the user to select which output file to view
-        ChoiceDialog<File> choiceDialog = new ChoiceDialog<>(processedExcelFiles.get(0), processedExcelFiles);
-        choiceDialog.setTitle("Select Output File");
-        choiceDialog.setHeaderText("Choose an output file to view:");
-        choiceDialog.setContentText("Output Files:");
-
-        // Apply custom dialog style
-        applyDialogStyle(choiceDialog);
-
-        // Show the dialog and wait for the user to select a file
-        Optional<File> selectedFile = choiceDialog.showAndWait();
-        selectedFile.ifPresent(this::openExcelFile);
+        chooseProcessedFile("Choose an output file to view:")
+                .ifPresent(this::openExcelFile);
     }
 
 
     private void openExcelFile(File file) {
-        if (Desktop.isDesktopSupported()) {
-            Desktop desktop = Desktop.getDesktop();
-
-            try {
-                if (desktop.isSupported(Desktop.Action.OPEN)) {
-                    desktop.open(file);
-                } else {
-                    this.displayError("Opening files is not supported on this system.");
-                }
-            } catch (IOException e) {
-                this.displayError("Error opening Excel file: " + e.getMessage());
-            }
-        } else {
-            this.displayError("Desktop is not supported on this platform.");
+        if (file == null || !file.exists()) {
+            displayError("Output file not found: " + (file == null ? "(null)" : file.getAbsolutePath()));
+            return;
         }
 
+        try {
+            // Prefer OS open command — more reliable than AWT Desktop inside jpackage apps
+            String os = System.getProperty("os.name", "").toLowerCase();
+            ProcessBuilder pb;
+            if (os.contains("mac")) {
+                pb = new ProcessBuilder("open", file.getAbsolutePath());
+            } else if (os.contains("win")) {
+                pb = new ProcessBuilder("cmd", "/c", "start", "", file.getAbsolutePath());
+            } else {
+                pb = new ProcessBuilder("xdg-open", file.getAbsolutePath());
+            }
+            pb.start();
+            displayInfo("Opened: " + file.getAbsolutePath());
+            return;
+        } catch (Exception ignored) {
+            // fall through
+        }
+
+        try {
+            getHostServices().showDocument(file.toURI().toString());
+            displayInfo("Opened via HostServices: " + file.getAbsolutePath());
+            return;
+        } catch (Exception ignored) {
+            // fall through
+        }
+
+        try {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.OPEN)) {
+                Desktop.getDesktop().open(file);
+                displayInfo("Opened via Desktop: " + file.getAbsolutePath());
+            } else {
+                displayError("Unable to open file automatically. Path: " + file.getAbsolutePath());
+            }
+        } catch (IOException e) {
+            displayError("Error opening Excel file: " + e.getMessage() + "\nPath: " + file.getAbsolutePath());
+        }
     }
 
 
@@ -1499,12 +1792,10 @@ public class CSVProcessorApp extends Application {
         choiceDialog.setContentText("Output Files:");
 
         // Apply style to the dialog
-        applyDialogStyle(choiceDialog);
+        styleOwnedDialog(choiceDialog);
 
-        // Show the dialog and wait for the user to select a file
         Optional<File> selectedFile = choiceDialog.showAndWait();
 
-        // If the user made a selection, proceed to save the file
         selectedFile.ifPresent(fileToSave -> {
             // FileChooser to let the user choose the save location
             FileChooser fileChooser = new FileChooser();
@@ -1531,7 +1822,7 @@ public class CSVProcessorApp extends Application {
             }
 
             // Show save dialog and get the file chosen by the user
-            File savedFile = fileChooser.showSaveDialog(new Stage());
+            File savedFile = fileChooser.showSaveDialog(ownerWindow());
 
             // If the user selected a file (i.e., didn't cancel)
             if (savedFile != null) {

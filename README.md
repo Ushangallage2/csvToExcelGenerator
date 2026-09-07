@@ -2,6 +2,18 @@
 
 Desktop JavaFX app that validates Shopify product CSVs and writes structured Excel reports (errors + success sheets). Also supports variation/product upload templates and Apple Numbers → CSV conversion via Aspose Cells.
 
+## What’s improved in 1.3.0
+
+- Select is split into three paths: **A CSV**, **B template**, **C Numbers**.
+- Compact glowing **▼ what to select in each** hint.
+- `.numbers` conversion tries Aspose, then Apple Numbers on macOS.
+
+## What’s improved in 1.2.0
+
+- **View / Save / Corrected Output** open and save reliably (absolute output paths, native file open, dialogs owned by the window).
+- **Generate SQL** is a separate button from Corrected Output.
+- Expandable **What to select** guidance on the Select panel.
+
 ## What’s improved in 1.1.0
 
 - **Null / empty Title safety** — missing or null `Title` (and related cells) no longer crash the app; they are validated and reported as before.
@@ -27,7 +39,7 @@ Or package a fat jar:
 
 ```bash
 mvn -DskipTests package
-java -jar target/csv-to-excel-generator-1.1.0.jar
+java -jar target/csv-to-excel-generator-1.3.0.jar
 ```
 
 > Fat jars that embed JavaFX may need platform-specific JavaFX natives. Prefer `mvn javafx:run` for local use, or the `jpackage` scripts below for distributable apps.
