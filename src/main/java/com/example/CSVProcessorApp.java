@@ -156,7 +156,7 @@ public class CSVProcessorApp extends Application {
 
     @Override
     public void start(Stage primaryStage) {
-        primaryStage.setTitle("Shopify CSV Fixer");
+        primaryStage.setTitle("CSV → Excel Generator");
 
         String recentInputFolder = loadPreference(RECENT_INPUT_FOLDER_KEY, ""); // Default to empty
         String lastOutputFolder = loadPreference(LAST_OUTPUT_FOLDER_KEY, "");
@@ -278,21 +278,48 @@ public class CSVProcessorApp extends Application {
 
 
 
+        selectCsvButton.getStyleClass().add("primary-button");
+        processButton.getStyleClass().add("primary-button");
+        viewExcelButton.getStyleClass().add("ghost-button");
+        saveExcelButton.getStyleClass().add("ghost-button");
+        correctedOutputButton.getStyleClass().add("ghost-button");
+        clearSelectedFilesButton.getStyleClass().add("danger-button");
+        convertNumbersToCsvButton.getStyleClass().add("ghost-button");
+
+        Label brandTitle = new Label("CSV → Excel Generator");
+        brandTitle.getStyleClass().add("brand-title");
+        Label brandSubtitle = new Label("Shopify product CSV validation and Excel reporting");
+        brandSubtitle.getStyleClass().add("brand-subtitle");
+        VBox brandBox = new VBox(4, brandTitle, brandSubtitle);
+        brandBox.getStyleClass().add("brand-box");
+
+        Label step1Title = new Label("1 · Select");
+        step1Title.getStyleClass().add("step-title");
+        Label step2Title = new Label("2 · Process");
+        step2Title.getStyleClass().add("step-title");
+        Label step3Title = new Label("3 · Review & Save");
+        step3Title.getStyleClass().add("step-title");
+
         HBox buttonContainer = new HBox(10);
-        buttonContainer.setAlignment(Pos.CENTER);
-        buttonContainer.setPadding(new Insets(10));
-        buttonContainer.getChildren().addAll(selectCsvButton, processButton, viewExcelButton, saveExcelButton);
-        buttonContainer.getChildren().addAll(correctedOutputButton);
+        buttonContainer.setAlignment(Pos.CENTER_LEFT);
+        buttonContainer.setPadding(new Insets(8, 0, 8, 0));
+        buttonContainer.getChildren().addAll(selectCsvButton);
 
-        HBox saveClearButtonContainer = new HBox(15);
-        saveClearButtonContainer.setAlignment(Pos.CENTER_RIGHT);
-        saveClearButtonContainer.setPadding(new Insets(10));
+        HBox processContainer = new HBox(10);
+        processContainer.setAlignment(Pos.CENTER_LEFT);
+        processContainer.setPadding(new Insets(8, 0, 8, 0));
+        processContainer.getChildren().addAll(processButton);
 
-        // Create a spacer region
+        HBox reviewContainer = new HBox(10);
+        reviewContainer.setAlignment(Pos.CENTER_LEFT);
+        reviewContainer.setPadding(new Insets(8, 0, 8, 0));
+        reviewContainer.getChildren().addAll(viewExcelButton, saveExcelButton, correctedOutputButton);
+
+        HBox saveClearButtonContainer = new HBox(12);
+        saveClearButtonContainer.setAlignment(Pos.CENTER_LEFT);
+        saveClearButtonContainer.setPadding(new Insets(8, 0, 8, 0));
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
-
-        // Add nodes: inputTemplate1 | processTemplate1 | saveTemplate1 | spacer | clearSelectedFilesButton
         saveClearButtonContainer.getChildren().addAll(
                 uploadFileTypeComboBox,
                 processTemplate1,
@@ -301,18 +328,28 @@ public class CSVProcessorApp extends Application {
                 clearSelectedFilesButton
         );
 
+        VBox step1Panel = new VBox(8, step1Title, buttonContainer, saveClearButtonContainer);
+        step1Panel.getStyleClass().add("panel");
+        Label step2Hint = new Label("Validate selected Shopify CSVs. Progress appears below.");
+        step2Hint.getStyleClass().add("status-label");
+        VBox step2Panel = new VBox(8, step2Title, step2Hint, processContainer);
+        step2Panel.getStyleClass().add("panel");
+        VBox step3Panel = new VBox(8, step3Title, reviewContainer);
+        step3Panel.getStyleClass().add("panel");
 
         variationSelectedFileLabel= new Label("No Variation upload file selected");
-        errorTextArea = new TextArea();
-        errorTextArea.setEditable(false);
-        errorTextArea.setPrefHeight(250);
-
-
-
+        variationSelectedFileLabel.getStyleClass().add("status-label");
         selectedFileLabel = new Label("No CSV file selected");
+        selectedFileLabel.getStyleClass().add("status-label");
         errorTextArea = new TextArea();
         errorTextArea.setEditable(false);
-        errorTextArea.setPrefHeight(150);
+        errorTextArea.setPrefHeight(180);
+        errorTextArea.getStyleClass().add("console");
+        progressBar = new ProgressBar(0);
+        progressBar.setMaxWidth(Double.MAX_VALUE);
+        progressBar.setVisible(false);
+        progressLabel = new Label("");
+        progressLabel.getStyleClass().add("status-label");
 
         // Instructions Label and Button
         Label instructionsLabel = new Label(
@@ -363,8 +400,6 @@ public class CSVProcessorApp extends Application {
             toggleInstructionsButton.setText(isVisible ? "▼ Show Instructions" : "▲ Hide Instructions");
         });
 
-        clearSelectedFilesButton.setStyle("-fx-background-color: #d4af37; -fx-text-fill: black; -fx-font-weight: bold; -fx-font-size: 14px; -fx-background-radius: 30; -fx-padding: 10 20; -fx-translate-x: -7;");
-        uploadFileTypeComboBox.setStyle("-fx-background-color: #d4af37; -fx-text-fill: black; -fx-font-weight: bold; -fx-font-size: 14px; -fx-background-radius: 30; -fx-padding: 10 20; -fx-translate-x: -7;");
 
         // Bind buttons to stage width for responsiveness
         selectCsvButton.prefWidthProperty().bind(primaryStage.widthProperty().multiply(0.24));
@@ -385,15 +420,29 @@ public class CSVProcessorApp extends Application {
         rightAlignedButtonBox.getChildren().addAll(spacer1, convertNumbersToCsvButton);
 
 
-        // Main Layout
-        VBox layout = new VBox(10);
-        layout.setPadding(new Insets(10));
-        layout.getChildren().addAll(buttonContainer, saveClearButtonContainer, rightAlignedButtonBox, selectedFileLabel,variationSelectedFileLabel, new Label("Messages/Warnings:"), errorTextArea, toggleInstructionsButton, instructionsLabel);
+        Label messagesTitle = new Label("Activity log");
+        messagesTitle.getStyleClass().add("section-label");
 
+        VBox layout = new VBox(14);
+        layout.setPadding(new Insets(20));
+        layout.getStyleClass().add("root-layout");
+        layout.getChildren().addAll(
+                brandBox,
+                step1Panel,
+                step2Panel,
+                step3Panel,
+                rightAlignedButtonBox,
+                selectedFileLabel,
+                variationSelectedFileLabel,
+                progressLabel,
+                progressBar,
+                messagesTitle,
+                errorTextArea,
+                toggleInstructionsButton,
+                instructionsLabel
+        );
 
-
-        // Create and set the scene
-        Scene scene = new Scene(layout, 950, 600);
+        Scene scene = new Scene(layout, 980, 720);
 
         selectCsvButton.setOnAction(e -> {
             System.out.println("Select CSV Button Clicked");
@@ -1108,11 +1157,9 @@ public class CSVProcessorApp extends Application {
             return;
         }
 
-        VBox layout = (VBox) errorTextArea.getParent();
-        ProgressIndicator progressIndicator = new ProgressIndicator();
-        progressIndicator.setProgress(-1.0);
-        progressIndicator.setVisible(true);
-        layout.getChildren().add(progressIndicator);
+        progressBar.setVisible(true);
+        progressBar.setProgress(0);
+        progressLabel.setText("Starting…");
 
         Task<Void> processingTask = new Task<Void>() {
             @Override
@@ -1126,25 +1173,29 @@ public class CSVProcessorApp extends Application {
                     int attemptCount = getAttemptCount(baseName);
                     String outputFilePath = baseName + "_attempt_" + attemptCount + ".xlsx"; // Unique name
 
+                    final int fileIndex = i + 1;
+                    updateMessage("Processing " + csvFile.getName() + " (" + fileIndex + "/" + totalFiles + ")");
+                    updateProgress(fileIndex - 1, totalFiles);
                     try {
                         boolean success = csvProcessor.processCsv(inputFilePath, outputFilePath, errorTextArea);
                         if (success) {
                             File outputFile = new File(outputFilePath);
                             processedExcelFiles.add(outputFile);
 
-                            // Check if there are any errors in the output file
                             boolean hasErrors = csvProcessor.hasErrors(outputFile);
                             if (hasErrors) {
-                                Platform.runLater(() -> displayError("There are errors in this file. Please check: " + csvFile.getName() + " 😥"));
+                                Platform.runLater(() -> displayError("Validation issues found — review the Excel report: " + csvFile.getName()));
                             } else {
-                                Platform.runLater(() -> displayInfo("There is no error in the file! " + csvFile.getName() + "😊"));
+                                Platform.runLater(() -> displayInfo("No validation errors: " + csvFile.getName()));
                             }
+                        } else {
+                            Platform.runLater(() -> displayError("Could not process: " + csvFile.getName()));
                         }
-                    } catch (IOException e) {
-                        Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " + e.getMessage()));
+                    } catch (Exception e) {
+                        Platform.runLater(() -> displayError("Error processing " + csvFile.getName() + ": " +
+                                (e.getMessage() != null ? e.getMessage() : e.toString())));
                     }
-                                // Provide some delay to allow visibility of processing feedback, if needed.
-                                Thread.sleep(100); //slight delay
+                    updateProgress(fileIndex, totalFiles);
                             }
 
                             return null;
@@ -1154,23 +1205,32 @@ public class CSVProcessorApp extends Application {
             protected void succeeded() {
                 super.succeeded();
                 Platform.runLater(() -> {
-                    displayInfo("All files processed successfully.");
-                    layout.getChildren().remove(progressIndicator); // Remove ProgressIndicator
+                    displayInfo("All files processed.");
+                    progressBar.progressProperty().unbind();
+                    progressBar.setProgress(1);
+                    progressBar.setVisible(false);
+                    progressLabel.setText("Done");
                 });
             }
 
             @Override
             protected void failed() {
                 super.failed();
-                Throwable error = getException(); // Get the actual exception
+                Throwable error = getException();
                 Platform.runLater(() -> {
                     displayError("File processing failed: " + (error != null ? error.getMessage() : "Unknown error"));
-                    layout.getChildren().remove(progressIndicator); // Remove ProgressIndicator
+                    progressBar.progressProperty().unbind();
+                    progressBar.setVisible(false);
+                    progressLabel.setText("Failed");
                 });
             }
         };
 
-        new Thread(processingTask).start(); // Start the processing task in a new thread
+        progressBar.progressProperty().bind(processingTask.progressProperty());
+        processingTask.messageProperty().addListener((obs, o, n) -> progressLabel.setText(n));
+        Thread worker = new Thread(processingTask, "csv-processor");
+        worker.setDaemon(true);
+        worker.start();
     }
 
 
@@ -1580,11 +1640,11 @@ public class CSVProcessorApp extends Application {
                     // Group records by handle and skip image entries
                     List<CSVRecord> recordsToProcess = new ArrayList<>();
                     for (CSVRecord record : parser) {
-                        boolean isImageEntry = record.get("Option1 Name").isEmpty() &&
-                                record.get("Option1 Value").isEmpty() &&
-                                record.get("Option2 Name").isEmpty() &&
-                                record.get("Option2 Value").isEmpty() &&
-                                record.get("Variant SKU").isEmpty();
+                        boolean isImageEntry = getCellValue(record, "Option1 Name").isEmpty() &&
+                                getCellValue(record, "Option1 Value").isEmpty() &&
+                                getCellValue(record, "Option2 Name").isEmpty() &&
+                                getCellValue(record, "Option2 Value").isEmpty() &&
+                                getCellValue(record, "Variant SKU").isEmpty();
 
                         if (!isImageEntry) {
                             recordsToProcess.add(record);
@@ -1594,7 +1654,7 @@ public class CSVProcessorApp extends Application {
                     }
 
                     for (CSVRecord record : recordsToProcess) {
-                        String handle = record.get("Handle");
+                        String handle = getCellValue(record, "Handle");
                         handleToRecordsMap.computeIfAbsent(handle, k -> new ArrayList<>()).add(record);
                     }
 
@@ -1602,12 +1662,12 @@ public class CSVProcessorApp extends Application {
                     for (Map.Entry<String, List<CSVRecord>> entry : handleToRecordsMap.entrySet()) {
                         String handle = entry.getKey();
                         List<CSVRecord> records = entry.getValue();
-
+                        try {
 
                         // Identify "Title/Default Title" Meta Products
                         List<CSVRecord> titleDefaultMetaProducts = records.stream()
-                                .filter(r -> r.get("Option1 Name") != null && r.get("Option1 Name").equalsIgnoreCase("Title") &&
-                                        r.get("Option1 Value") != null && r.get("Option1 Value").equalsIgnoreCase("Default Title"))
+                                .filter(r -> getCellValue(r, "Option1 Name").equalsIgnoreCase("Title") &&
+                                        getCellValue(r, "Option1 Value").equalsIgnoreCase("Default Title"))
                                 .collect(Collectors.toList());
 
                         // Enforce Single "Title/Default Title" Meta Product per Handle
@@ -1621,7 +1681,7 @@ public class CSVProcessorApp extends Application {
 
                         // Check if it is meta product (contains valid title)
                         List<CSVRecord> metaRecords = records.stream()
-                                .filter(r -> r.get("Title") != null && !r.get("Title").isEmpty())
+                                .filter(r -> !getCellValue(r, "Title").isEmpty())
                                 .collect(Collectors.toList());
 
 
@@ -1701,10 +1761,10 @@ public class CSVProcessorApp extends Application {
 
                             // Validate SKU
                             if (sku.isEmpty()) {
-                                currentRecordErrors.add(new ProductError("Missing SKU", record, metaRecord != null ? metaRecord.get("Title") : ""));
+                                currentRecordErrors.add(new ProductError("Missing SKU", record, metaRecord != null ? getCellValue(metaRecord, "Title") : ""));
                                 errors.get("Invalid - Duplicate SKUs").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                             } else if (skuSet.contains(sku)) {
-                                currentRecordErrors.add(new ProductError("Duplicate SKU found", record, metaRecord != null ? metaRecord.get("Title") : ""));
+                                currentRecordErrors.add(new ProductError("Duplicate SKU found", record, metaRecord != null ? getCellValue(metaRecord, "Title") : ""));
                                 errors.get("Invalid - Duplicate SKUs").add(currentRecordErrors.get(currentRecordErrors.size() - 1));
                             } else {
                                 skuSet.add(sku);
@@ -1836,16 +1896,32 @@ public class CSVProcessorApp extends Application {
                             }
                         }
 
+                        } catch (RuntimeException rowEx) {
+                            String msg = "Unexpected error while processing handle '" + handle + "': " +
+                                    (rowEx.getMessage() != null ? rowEx.getMessage() : rowEx.getClass().getSimpleName());
+                            if (records.isEmpty()) {
+                                Platform.runLater(() -> errorTextArea.appendText(msg + "\n"));
+                            } else {
+                                errors.get("Other Errors").add(new ProductError(msg, records.get(0)));
+                            }
+                        }
                     }
                 }
 
                 System.out.println("Skipped image entries: " + imageEntries.size());
 
-                writeErrorsToExcel(outputFilePath, errors);
-                writeSuccessfulRecordsToExcel(outputFilePath, successfulRecords);
-                System.out.println("Processing completed. Errors written to: " + outputFilePath);
+                writeResultsToExcel(outputFilePath, errors, successfulRecords);
+                System.out.println("Processing completed. Results written to: " + outputFilePath);
             } catch (IOException e) {
                 e.printStackTrace();
+                String msg = e.getMessage() != null ? e.getMessage() : e.toString();
+                Platform.runLater(() -> errorTextArea.appendText("I/O error: " + msg + "\n"));
+                return false;
+            } catch (RuntimeException e) {
+                e.printStackTrace();
+                String msg = e.getMessage() != null ? e.getMessage() : e.toString();
+                Platform.runLater(() -> errorTextArea.appendText("Processing error: " + msg + "\n"));
+                return false;
             }
             return true;
         }
@@ -1870,16 +1946,18 @@ public class CSVProcessorApp extends Application {
         }
 
 
-        private static void writeErrorsToExcel(String outputFilePath, Map<String, List<ProductError>> errors) throws IOException {
+        private static void writeResultsToExcel(String outputFilePath,
+                                                 Map<String, List<ProductError>> errors,
+                                                 List<SuccessfulRecord> successfulRecords) throws IOException {
             try (Workbook workbook = new XSSFWorkbook()) {
                 for (Map.Entry<String, List<ProductError>> entry : errors.entrySet()) {
                     writeErrorsToSheet(workbook, entry.getKey(), entry.getValue());
                 }
+                writeSuccessfulRecordsToSheet(workbook, successfulRecords);
                 try (FileOutputStream outputStream = new FileOutputStream(outputFilePath)) {
                     workbook.write(outputStream);
                 }
             } catch (FileNotFoundException e) {
-                // Handle permission denied error specifically
                 throw new IOException("Permission denied to write to: " + outputFilePath + ". Please ensure the file is not open in another application or adjust your file permissions.", e);
             }
         }
@@ -1898,51 +1976,43 @@ public class CSVProcessorApp extends Application {
             int rowNum = 2;
             for (ProductError error : productErrors) {
                 Row row = sheet.createRow(rowNum++);
-                row.createCell(0).setCellValue(error.errorLog);
-                row.createCell(1).setCellValue(error.handle);
-                row.createCell(2).setCellValue(error.title);
-                row.createCell(3).setCellValue(error.productCategory);
-                row.createCell(4).setCellValue(error.option1Name);
-                row.createCell(5).setCellValue(error.option1Value);
-                row.createCell(6).setCellValue(error.option2Name);
-                row.createCell(7).setCellValue(error.option2Value);
-                row.createCell(8).setCellValue(error.variantSKU);
-                row.createCell(9).setCellValue(error.metaStatus != null ? error.metaStatus : "");
+                setStringCell(row, 0, error.errorLog);
+                setStringCell(row, 1, error.handle);
+                setStringCell(row, 2, error.title);
+                setStringCell(row, 3, error.productCategory);
+                setStringCell(row, 4, error.option1Name);
+                setStringCell(row, 5, error.option1Value);
+                setStringCell(row, 6, error.option2Name);
+                setStringCell(row, 7, error.option2Value);
+                setStringCell(row, 8, error.variantSKU);
+                setStringCell(row, 9, error.metaStatus);
             }
         }
 
-        private static void writeSuccessfulRecordsToExcel(String outputFilePath, List<SuccessfulRecord> successfulRecords) throws IOException {
-            try (FileInputStream fileInputStream = new FileInputStream(outputFilePath);
-                 Workbook workbook = new XSSFWorkbook(fileInputStream)) {
-                Sheet successSheet = workbook.createSheet("Success");
-                Row countRow = successSheet.createRow(0);
-                countRow.createCell(0).setCellValue("Count of Successful Records: " + successfulRecords.size());
+        private static void writeSuccessfulRecordsToSheet(Workbook workbook, List<SuccessfulRecord> successfulRecords) {
+            Sheet successSheet = workbook.createSheet("Success");
+            Row countRow = successSheet.createRow(0);
+            countRow.createCell(0).setCellValue("Count of Successful Records: " + successfulRecords.size());
 
-                Row headerRow = successSheet.createRow(1);
-                String[] headers = {"Handle", "Title", "Product Category", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Variant SKU", "Meta Status"};
-                for (int i = 0; i < headers.length; i++) {
-                    headerRow.createCell(i).setCellValue(headers[i]);
-                }
+            Row headerRow = successSheet.createRow(1);
+            String[] headers = {"Handle", "Title", "Product Category", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Variant SKU", "Meta Status"};
+            for (int i = 0; i < headers.length; i++) {
+                headerRow.createCell(i).setCellValue(headers[i]);
+            }
 
-                int rowNum = 2;
-                for (SuccessfulRecord successfulRecord : successfulRecords) {
-                    CSVRecord record = successfulRecord.record;
-                    Row row = successSheet.createRow(rowNum++);
-                    row.createCell(0).setCellValue(record.get("Handle"));
-                    row.createCell(1).setCellValue(record.get("Title"));
-                    row.createCell(2).setCellValue(record.get("Product Category"));
-                    row.createCell(3).setCellValue(record.get("Option1 Name"));
-                    row.createCell(4).setCellValue(record.get("Option1 Value"));
-                    row.createCell(5).setCellValue(record.get("Option2 Name"));
-                    row.createCell(6).setCellValue(record.get("Option2 Value"));
-                    row.createCell(7).setCellValue(record.get("Variant SKU"));
-                    row.createCell(8).setCellValue(successfulRecord.metaStatus);
-                }
-
-                // Write to the file
-                try (FileOutputStream fileOut = new FileOutputStream(outputFilePath)) {
-                    workbook.write(fileOut);
-                }
+            int rowNum = 2;
+            for (SuccessfulRecord successfulRecord : successfulRecords) {
+                CSVRecord record = successfulRecord.record;
+                Row row = successSheet.createRow(rowNum++);
+                setStringCell(row, 0, getCellValue(record, "Handle"));
+                setStringCell(row, 1, getCellValue(record, "Title"));
+                setStringCell(row, 2, getCellValue(record, "Product Category"));
+                setStringCell(row, 3, getCellValue(record, "Option1 Name"));
+                setStringCell(row, 4, getCellValue(record, "Option1 Value"));
+                setStringCell(row, 5, getCellValue(record, "Option2 Name"));
+                setStringCell(row, 6, getCellValue(record, "Option2 Value"));
+                setStringCell(row, 7, getCellValue(record, "Variant SKU"));
+                setStringCell(row, 8, successfulRecord.metaStatus);
             }
         }
 
@@ -1961,10 +2031,15 @@ public class CSVProcessorApp extends Application {
 
         private static String getCellValue(CSVRecord record, String headerName) {
             try {
-                return record.get(headerName);
-            } catch (IllegalArgumentException e) {
-                return ""; // Handle missing header gracefully
+                String value = record.get(headerName);
+                return value == null ? "" : value.trim();
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                return "";
             }
+        }
+
+        private static void setStringCell(Row row, int index, String value) {
+            row.createCell(index).setCellValue(value == null ? "" : value);
         }
 
 
@@ -2034,21 +2109,21 @@ public class CSVProcessorApp extends Application {
             String metaStatus;
 
             public ProductError(String errorLog, CSVRecord record) {
-                this.errorLog = errorLog;
-                this.handle = record.get("Handle");
-                this.title = record.get("Title");
-                this.productCategory = record.get("Product Category");
-                this.option1Name = record.get("Option1 Name");
-                this.option1Value = record.get("Option1 Value");
-                this.option2Name = record.get("Option2 Name");
-                this.option2Value = record.get("Option2 Value");
-                this.variantSKU = record.get("Variant SKU");
-                this.metaStatus = null;
+                this.errorLog = errorLog == null ? "" : errorLog;
+                this.handle = getCellValue(record, "Handle");
+                this.title = getCellValue(record, "Title");
+                this.productCategory = getCellValue(record, "Product Category");
+                this.option1Name = getCellValue(record, "Option1 Name");
+                this.option1Value = getCellValue(record, "Option1 Value");
+                this.option2Name = getCellValue(record, "Option2 Name");
+                this.option2Value = getCellValue(record, "Option2 Value");
+                this.variantSKU = getCellValue(record, "Variant SKU");
+                this.metaStatus = "";
             }
 
             public ProductError(String errorLog, CSVRecord record, String metaTitle) {
                 this(errorLog, record);
-                this.title = metaTitle;
+                this.title = metaTitle == null ? "" : metaTitle.trim();
             }
         }
 

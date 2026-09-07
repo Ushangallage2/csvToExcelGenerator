@@ -36,3 +36,12 @@ build/
 
 ### Mac OS ###
 .DS_Store
+### Build / packaging ###
+dist/
+*.jar
+!**/src/main/**/*.jar
+
+### Local sample / temp outputs ###
+*_attempt_*.xlsx
+~$*.xlsx
+input*.csv
