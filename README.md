@@ -62,3 +62,15 @@ Empty titles on suspected meta products are flagged in **Other Errors** instead 
 ## Note on sample CSVs
 
 Large sample inputs in the repo root are for local testing; prefer keeping them out of commits when possible.
+
+## macOS app won’t open?
+
+JavaFX fat jars must start via `com.example.Launcher` (not `CSVProcessorApp`). Rebuild with:
+
+```bash
+./scripts/package-macos.sh
+open "dist/macos/CSV to Excel Generator.app"
+```
+
+If macOS still blocks it: right-click → **Open**, or run `xattr -cr "dist/macos/CSV to Excel Generator.app"`.
+

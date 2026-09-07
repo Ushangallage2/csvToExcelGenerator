@@ -14,7 +14,7 @@
         <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <javafx.version>21.0.1</javafx.version>
-        <main.class>com.example.CSVProcessorApp</main.class>
+        <main.class>com.example.Launcher</main.class>
     </properties>
 
     <dependencies>

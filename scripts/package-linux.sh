@@ -2,31 +2,38 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
 mvn -DskipTests package
+
 APP_NAME="csv-to-excel-generator"
-JAR=$(ls target/csv-to-excel-generator-*.jar | head -1)
+JAR="target/csv-to-excel-generator-1.1.0.jar"
+STAGE="$ROOT/target/jpackage-input"
 DEST="$ROOT/dist/linux"
-rm -rf "$DEST"
-mkdir -p "$DEST"
-# Prefer app-image (works without fakeroot); also try deb if available
+
+rm -rf "$STAGE" "$DEST"
+mkdir -p "$STAGE" "$DEST"
+cp "$JAR" "$STAGE/"
+
 jpackage \
   --type app-image \
   --name "$APP_NAME" \
-  --input target \
+  --input "$STAGE" \
   --main-jar "$(basename "$JAR")" \
-  --main-class com.example.CSVProcessorApp \
+  --main-class com.example.Launcher \
   --dest "$DEST" \
   --java-options "-Dfile.encoding=UTF-8" \
   --app-version 1.1.0
+
 if command -v dpkg-deb >/dev/null 2>&1; then
   jpackage \
     --type deb \
     --name "$APP_NAME" \
-    --input target \
+    --input "$STAGE" \
     --main-jar "$(basename "$JAR")" \
-    --main-class com.example.CSVProcessorApp \
+    --main-class com.example.Launcher \
     --dest "$DEST" \
     --java-options "-Dfile.encoding=UTF-8" \
     --app-version 1.1.0 || true
 fi
+
 echo "Linux package(s) under: $DEST"
