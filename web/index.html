@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CSV → Excel Generator</title>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1 class="brand-title">CSV → Excel Generator</h1>
+      <p class="brand-subtitle">Shopify product CSV validation and Excel reporting (web)</p>
+
+      <section class="panel">
+        <div class="header-row">
+          <div class="step-title">1 · Select</div>
+          <button class="danger" id="clear-all" type="button">Clear All</button>
+        </div>
+
+        <div class="hint" id="hint">
+          <span class="hint-arrow" id="hint-arrow">▼</span>
+          <span class="hint-text">what to select in each</span>
+        </div>
+        <div class="guidance" id="guidance" hidden>
+A  Direct select: choose your CSV, press Process, then View / Save / Corrected XLSX / Generate SQL.
+B  Template: pick Variation or Product, process the CSV, then Save Template.
+C  Numbers: convert .numbers to .csv, then go back to A or B.
+        </div>
+
+        <div class="path-card">
+          <div class="path-title">A · Validate a CSV  (direct select)</div>
+          <p class="status" id="status-a">No CSV file selected</p>
+          <div class="row">
+            <button class="primary" id="select-csv" type="button">Select CSV File</button>
+          </div>
+        </div>
+
+        <div class="path-card">
+          <div class="path-title">B · Build an upload file  (template)</div>
+          <p class="status" id="status-b">No Variation upload file selected</p>
+          <div class="row">
+            <select id="template-type">
+              <option value="">Choose Variation or Product…</option>
+              <option value="variation">Variation Upload File</option>
+              <option value="product">Product Upload File</option>
+            </select>
+            <button id="process-template" type="button">process Template</button>
+            <button id="save-template" type="button">save Template</button>
+          </div>
+        </div>
+
+        <div class="path-card">
+          <div class="path-title">C · Apple Numbers  (.numbers → .csv)</div>
+          <p class="status">Convert first, then use the CSV in A or B</p>
+          <div class="row">
+            <button id="convert-numbers" type="button">Convert .numbers to .csv</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="step-title">2 · Process</div>
+        <p class="status">For path A: validate the CSV selected above.</p>
+        <button class="primary" id="process-csv" type="button">Process CSV</button>
+      </section>
+
+      <section class="panel">
+        <div class="step-title">3 · Review &amp; Save</div>
+        <div class="row" style="margin-top: 8px">
+          <button id="view-excel" type="button">View Excel File</button>
+          <button id="save-excel" type="button">Save Excel File</button>
+          <button id="corrected" type="button">Corrected Output</button>
+          <button id="sql" type="button">Generate SQL</button>
+        </div>
+      </section>
+
+      <p class="status">Activity log</p>
+      <textarea class="console" id="log" readonly></textarea>
+    </div>
+
+    <input id="csv-input" type="file" accept=".csv,.numbers,text/csv" multiple />
+    <input id="numbers-input" type="file" accept=".numbers" />
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
