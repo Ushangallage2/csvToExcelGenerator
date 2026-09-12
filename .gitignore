@@ -36,6 +36,11 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Node / Netlify web app ###
+node_modules/
+web/dist/
+web/node_modules/
 ### Build / packaging ###
 dist/
 *.jar
